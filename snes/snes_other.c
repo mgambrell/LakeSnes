@@ -125,16 +125,16 @@ bool snes_loadRom(Snes* snes, const uint8_t* data, int length) {
   return true;
 }
 
-void snes_setButtonState(Snes* snes, int player, int button, bool pressed) {
+void snes_setButtonState(Snes* snes, int playerNumber, int button, bool pressed) {
   // set key in controller
-  if(player == 1) {
+  if(playerNumber == 1) {
     if(pressed) {
       snes->input1->currentState |= 1 << button;
     } else {
       snes->input1->currentState &= ~(1 << button);
     }
   } else {
-    if(pressed) {
+    if(playerNumber) {
       snes->input2->currentState |= 1 << button;
     } else {
       snes->input2->currentState &= ~(1 << button);

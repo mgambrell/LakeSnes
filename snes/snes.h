@@ -83,7 +83,10 @@ void snes_runSpcCycle(Snes* snes);
 // snes_other.c functions:
 
 bool snes_loadRom(Snes* snes, const uint8_t* data, int length);
-void snes_setButtonState(Snes* snes, int player, int button, bool pressed);
+
+// playerNumber shall be 1 or 2 (playerNumber 0 is not valid)
+void snes_setButtonState(Snes* snes, int playerNumber, int button, bool pressed);
+
 void snes_setPixels(Snes* snes, uint8_t* pixelData);
 void snes_setSamples(Snes* snes, int16_t* sampleData, int samplesPerFrame);
 int snes_saveBattery(Snes* snes, uint8_t* data);
