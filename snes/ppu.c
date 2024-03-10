@@ -653,7 +653,7 @@ static void ppu_evaluateSprites(Ppu* ppu, int line) {
   uint8_t index = ppu->objPriority ? (ppu->oamAdr & 0xfe) : 0;
   int spritesFound = 0;
   int tilesFound = 0;
-  uint8_t foundSprites[32] = {};
+  uint8_t foundSprites[32] = {0};
   // iterate over oam to find sprites in range
   for(int i = 0; i < 128; i++) {
     uint8_t y = ppu->oam[index] >> 8;
