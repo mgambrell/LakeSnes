@@ -22,6 +22,21 @@ namespace LakeSnes
 
 	private:
 
+		struct Addr24
+		{
+			uint8_t bank;
+			uint8_t dummy;
+			uint16_t addr;
+
+			uint16_t low() const { return addr; }
+			uint16_t high() const { return (uint16_t)(addr+1); }
+		};
+
+		Addr24 MakeAddr24(uint8_t bank, uint16_t addr)
+		{
+			return Addr24 { bank, 0, addr };
+		}
+
 		void cpu_write(uint32_t adr, uint8_t val);
 		void cpu_idle();
 		void cpu_idleWait();
@@ -41,51 +56,55 @@ namespace LakeSnes
 		void cpu_doInterrupt();
 		void cpu_doOpcode(uint8_t opcode);
 
+		uint8_t cpu_read(Addr24 addr);
+		uint16_t cpu_readWord(Addr24 addr, bool intCheck);
+		void cpu_write(Addr24 addr, uint8_t val);
+		void cpu_writeWord(Addr24 addr, uint16_t value, bool reversed, bool intCheck);
 
 		// addressing modes
 		void cpu_adrImp();
-		uint32_t cpu_adrImm(uint32_t* low, bool xFlag);
-		uint32_t cpu_adrDp(uint32_t* low);
-		uint32_t cpu_adrDpx(uint32_t* low);
-		uint32_t cpu_adrDpy(uint32_t* low);
-		uint32_t cpu_adrIdp(uint32_t* low);
-		uint32_t cpu_adrIdx(uint32_t* low);
-		uint32_t cpu_adrIdy(uint32_t* low, bool write);
-		uint32_t cpu_adrIdl(uint32_t* low);
-		uint32_t cpu_adrIly(uint32_t* low);
-		uint32_t cpu_adrSr(uint32_t* low);
-		uint32_t cpu_adrIsy(uint32_t* low);
-		uint32_t cpu_adrAbs(uint32_t* low);
-		uint32_t cpu_adrAbx(uint32_t* low, bool write);
-		uint32_t cpu_adrAby(uint32_t* low, bool write);
-		uint32_t cpu_adrAbl(uint32_t* low);
-		uint32_t cpu_adrAlx(uint32_t* low);
+		[[nodiscard]] Addr24 cpu_adrImm(bool xFlag);
+		[[nodiscard]] Addr24 cpu_adrDp();
+		[[nodiscard]] Addr24 cpu_adrDpx();
+		[[nodiscard]] Addr24 cpu_adrDpy();
+		[[nodiscard]] Addr24 cpu_adrIdp();
+		[[nodiscard]] Addr24 cpu_adrIdx();
+		[[nodiscard]] Addr24 cpu_adrIdy(bool write);
+		[[nodiscard]] Addr24 cpu_adrIdl();
+		[[nodiscard]] Addr24 cpu_adrIly();
+		[[nodiscard]] Addr24 cpu_adrSr();
+		[[nodiscard]] Addr24 cpu_adrIsy();
+		[[nodiscard]] Addr24 cpu_adrAbs();
+		[[nodiscard]] Addr24 cpu_adrAbx(bool write);
+		[[nodiscard]] Addr24 cpu_adrAby(bool write);
+		[[nodiscard]] Addr24 cpu_adrAbl();
+		[[nodiscard]] Addr24 cpu_adrAlx();
 
 		// opcode functions
-		void cpu_and(uint32_t low, uint32_t high);
-		void cpu_ora(uint32_t low, uint32_t high);
-		void cpu_eor(uint32_t low, uint32_t high);
-		void cpu_adc(uint32_t low, uint32_t high);
-		void cpu_sbc(uint32_t low, uint32_t high);
-		void cpu_cmp(uint32_t low, uint32_t high);
-		void cpu_cpx(uint32_t low, uint32_t high);
-		void cpu_cpy(uint32_t low, uint32_t high);
-		void cpu_bit(uint32_t low, uint32_t high);
-		void cpu_lda(uint32_t low, uint32_t high);
-		void cpu_ldx(uint32_t low, uint32_t high);
-		void cpu_ldy(uint32_t low, uint32_t high);
-		void cpu_sta(uint32_t low, uint32_t high);
-		void cpu_stx(uint32_t low, uint32_t high);
-		void cpu_sty(uint32_t low, uint32_t high);
-		void cpu_stz(uint32_t low, uint32_t high);
-		void cpu_ror(uint32_t low, uint32_t high);
-		void cpu_rol(uint32_t low, uint32_t high);
-		void cpu_lsr(uint32_t low, uint32_t high);
-		void cpu_asl(uint32_t low, uint32_t high);
-		void cpu_inc(uint32_t low, uint32_t high);
-		void cpu_dec(uint32_t low, uint32_t high);
-		void cpu_tsb(uint32_t low, uint32_t high);
-		void cpu_trb(uint32_t low, uint32_t high);
+		void cpu_and(Addr24 addr);
+		void cpu_ora(Addr24 addr);
+		void cpu_eor(Addr24 addr);
+		void cpu_adc(Addr24 addr);
+		void cpu_sbc(Addr24 addr);
+		void cpu_cmp(Addr24 addr);
+		void cpu_cpx(Addr24 addr);
+		void cpu_cpy(Addr24 addr);
+		void cpu_bit(Addr24 addr);
+		void cpu_lda(Addr24 addr);
+		void cpu_ldx(Addr24 addr);
+		void cpu_ldy(Addr24 addr);
+		void cpu_sta(Addr24 addr);
+		void cpu_stx(Addr24 addr);
+		void cpu_sty(Addr24 addr);
+		void cpu_stz(Addr24 addr);
+		void cpu_ror(Addr24 addr);
+		void cpu_rol(Addr24 addr);
+		void cpu_lsr(Addr24 addr);
+		void cpu_asl(Addr24 addr);
+		void cpu_inc(Addr24 addr);
+		void cpu_dec(Addr24 addr);
+		void cpu_tsb(Addr24 addr);
+		void cpu_trb(Addr24 addr);
 
 	public:
 		struct {

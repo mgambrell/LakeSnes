@@ -360,6 +360,32 @@ namespace LakeSnes
 		return config.snes->snes_cpuRead(adr);
 	}
 
+	uint8_t Cpu::cpu_read(Addr24 addr)
+	{
+		auto addrl = (addr.bank<<16)+addr.addr;
+		return cpu_read(addrl);
+	}
+
+	uint16_t Cpu::cpu_readWord(Addr24 addr, bool intCheck)
+	{
+		auto addrl = (addr.bank<<16)+addr.addr;
+		auto addrh = ((addr.bank<<16)+addr.addr+1)&0xFFFFFF;
+		return cpu_readWord(addrl,addrh,intCheck);
+	}
+
+	void Cpu::cpu_write(Addr24 addr, uint8_t val)
+	{
+		auto addrl = (addr.bank<<16)+addr.addr;
+		return cpu_write(addrl,val);
+	}
+
+	void Cpu::cpu_writeWord(Addr24 addr, uint16_t value, bool reversed, bool intCheck)
+	{
+		auto addrl = (addr.bank<<16)+addr.addr;
+		auto addrh = ((addr.bank<<16)+addr.addr+1)&0xFFFFFF;
+		cpu_writeWord(addrl,addrh,value,reversed,intCheck);
+	}
+
 	void Cpu::cpu_write(uint32_t adr, uint8_t val) {
 		intDelay = false;
 		config.snes->snes_cpuWrite(adr, val);
@@ -517,178 +543,167 @@ namespace LakeSnes
 		}
 	}
 
-	uint32_t Cpu::cpu_adrImm(uint32_t* low, bool xFlag) {
+	Cpu::Addr24 Cpu::cpu_adrImm(bool xFlag) {
 		if((xFlag && xf) || (!xFlag && mf)) {
-			*low = (k << 16) | pc++;
-			return 0;
+			return MakeAddr24(k,pc++);
 		} else {
-			*low = (k << 16) | pc++;
-			return (k << 16) | pc++;
+			auto adr = pc;
+			pc+=2;
+			return MakeAddr24(k,adr);
 		}
 	}
 
-	uint32_t Cpu::cpu_adrDp(uint32_t* low) {
+	Cpu::Addr24 Cpu::cpu_adrDp() {
 		uint8_t adr = cpu_readOpcode();
 		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
-		*low = (dp + adr) & 0xffff;
-		return (dp + adr + 1) & 0xffff;
+		return MakeAddr24(dp,adr);
 	}
 
-	uint32_t Cpu::cpu_adrDpx(uint32_t* low) {
-		uint8_t adr = cpu_readOpcode();
-		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
-		cpu_idle();
-		*low = (dp + adr + x) & 0xffff;
-		return (dp + adr + x + 1) & 0xffff;
-	}
-
-	uint32_t Cpu::cpu_adrDpy(uint32_t* low) {
+	Cpu::Addr24 Cpu::cpu_adrDpx() {
 		uint8_t adr = cpu_readOpcode();
 		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
 		cpu_idle();
-		*low = (dp + adr + y) & 0xffff;
-		return (dp + adr + y + 1) & 0xffff;
+		return MakeAddr24(dp,adr+x);
 	}
 
-	uint32_t Cpu::cpu_adrIdp(uint32_t* low) {
+	Cpu::Addr24 Cpu::cpu_adrDpy() {
+		uint8_t adr = cpu_readOpcode();
+		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
+		cpu_idle();
+		return MakeAddr24(dp,adr+y);
+	}
+
+	Cpu::Addr24 Cpu::cpu_adrIdp() {
 		uint8_t adr = cpu_readOpcode();
 		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
 		uint16_t pointer = cpu_readWord((dp + adr) & 0xffff, (dp + adr + 1) & 0xffff, false);
-		*low = (db << 16) + pointer;
-		return ((db << 16) + pointer + 1) & 0xffffff;
+		return MakeAddr24(db,pointer);
 	}
 
-	uint32_t Cpu::cpu_adrIdx(uint32_t* low) {
+	Cpu::Addr24 Cpu::cpu_adrIdx() {
 		uint8_t adr = cpu_readOpcode();
 		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
 		cpu_idle();
 		uint16_t pointer = cpu_readWord((dp + adr + x) & 0xffff, (dp + adr + x + 1) & 0xffff, false);
-		*low = (db << 16) + pointer;
-		return ((db << 16) + pointer + 1) & 0xffffff;
+		return MakeAddr24(db,pointer);
 	}
 
-	uint32_t Cpu::cpu_adrIdy(uint32_t* low, bool write) {
+	Cpu::Addr24 Cpu::cpu_adrIdy(bool write) {
 		uint8_t adr = cpu_readOpcode();
 		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
 		uint16_t pointer = cpu_readWord((dp + adr) & 0xffff, (dp + adr + 1) & 0xffff, false);
 		// writing opcode or x = 0 or page crossed: 1 extra cycle
 		if(write || !xf || ((pointer >> 8) != ((pointer + y) >> 8))) cpu_idle();
-		*low = ((db << 16) + pointer + y) & 0xffffff;
-		return ((db << 16) + pointer + y + 1) & 0xffffff;
+		return MakeAddr24(db,pointer+y);
 	}
 
-	uint32_t Cpu::cpu_adrIdl(uint32_t* low) {
+	Cpu::Addr24 Cpu::cpu_adrIdl() {
 		uint8_t adr = cpu_readOpcode();
 		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
 		uint32_t pointer = cpu_readWord((dp + adr) & 0xffff, (dp + adr + 1) & 0xffff, false);
-		pointer |= cpu_read((dp + adr + 2) & 0xffff) << 16;
-		*low = pointer;
-		return (pointer + 1) & 0xffffff;
+		auto bank = cpu_read((dp + adr + 2) & 0xffff);
+		return MakeAddr24(bank, pointer);
 	}
 
-	uint32_t Cpu::cpu_adrIly(uint32_t* low) {
+	Cpu::Addr24 Cpu::cpu_adrIly() {
 		uint8_t adr = cpu_readOpcode();
 		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
 		uint32_t pointer = cpu_readWord((dp + adr) & 0xffff, (dp + adr + 1) & 0xffff, false);
-		pointer |= cpu_read((dp + adr + 2) & 0xffff) << 16;
-		*low = (pointer + y) & 0xffffff;
-		return (pointer + y + 1) & 0xffffff;
+		auto bank = cpu_read((dp + adr + 2) & 0xffff);
+		return MakeAddr24(bank, pointer + y);
 	}
 
-	uint32_t Cpu::cpu_adrSr(uint32_t* low) {
+	Cpu::Addr24 Cpu::cpu_adrSr() {
 		uint8_t adr = cpu_readOpcode();
 		cpu_idle();
-		*low = (sp + adr) & 0xffff;
-		return (sp + adr + 1) & 0xffff;
+		return MakeAddr24(0,sp + adr); //note: DB is 0 for stack
 	}
 
-	uint32_t Cpu::cpu_adrIsy(uint32_t* low) {
+	Cpu::Addr24 Cpu::cpu_adrIsy() {
 		uint8_t adr = cpu_readOpcode();
 		cpu_idle();
 		uint16_t pointer = cpu_readWord((sp + adr) & 0xffff, (sp + adr + 1) & 0xffff, false);
 		cpu_idle();
-		*low = ((db << 16) + pointer + y) & 0xffffff;
-		return ((db << 16) + pointer + y + 1) & 0xffffff;
+		pointer += y;
+		return MakeAddr24(db,pointer);
 	}
 
-	uint32_t Cpu::cpu_adrAbs(uint32_t* low) {
+	Cpu::Addr24 Cpu::cpu_adrAbs() {
 		uint16_t adr = cpu_readOpcodeWord(false);
-		*low = (db << 16) + adr;
-		return ((db << 16) + adr + 1) & 0xffffff;
+		return MakeAddr24(db,adr);
 	}
 
-	uint32_t Cpu::cpu_adrAbx(uint32_t* low, bool write) {
+	Cpu::Addr24 Cpu::cpu_adrAbx(bool write) {
 		uint16_t adr = cpu_readOpcodeWord(false);
 		// writing opcode or x = 0 or page crossed: 1 extra cycle
 		if(write || !xf || ((adr >> 8) != ((adr + x) >> 8))) cpu_idle();
-		*low = ((db << 16) + adr + x) & 0xffffff;
-		return ((db << 16) + adr + x + 1) & 0xffffff;
+		adr += x;
+		return MakeAddr24(db,adr);
 	}
 
-	uint32_t Cpu::cpu_adrAby(uint32_t* low, bool write) {
+	Cpu::Addr24 Cpu::cpu_adrAby(bool write) {
 		uint16_t adr = cpu_readOpcodeWord(false);
 		// writing opcode or x = 0 or page crossed: 1 extra cycle
 		if(write || !xf || ((adr >> 8) != ((adr + y) >> 8))) cpu_idle();
-		*low = ((db << 16) + adr + y) & 0xffffff;
-		return ((db << 16) + adr + y + 1) & 0xffffff;
+		adr += y;
+		return MakeAddr24(db,adr);
 	}
 
-	uint32_t Cpu::cpu_adrAbl(uint32_t* low) {
+	Cpu::Addr24 Cpu::cpu_adrAbl() {
 		uint32_t adr = cpu_readOpcodeWord(false);
-		adr |= cpu_readOpcode() << 16;
-		*low = adr;
-		return (adr + 1) & 0xffffff;
+		auto bank = cpu_readOpcode();
+		return MakeAddr24(bank,adr);
 	}
 
-	uint32_t Cpu::cpu_adrAlx(uint32_t* low) {
+	Cpu::Addr24 Cpu::cpu_adrAlx() {
 		uint32_t adr = cpu_readOpcodeWord(false);
-		adr |= cpu_readOpcode() << 16;
-		*low = (adr + x) & 0xffffff;
-		return (adr + x + 1) & 0xffffff;
+		auto bank = cpu_readOpcode();
+		adr += x;
+		return MakeAddr24(bank,adr);
 	}
 
 	// opcode functions
 
-	void Cpu::cpu_and(uint32_t low, uint32_t high) {
+	void Cpu::cpu_and(Addr24 addr) {
 		if(mf) {
 			cpu_checkInt();
-			uint8_t value = cpu_read(low);
+			uint8_t value = cpu_read(addr);
 			a = (a & 0xff00) | ((a & value) & 0xff);
 		} else {
-			uint16_t value = cpu_readWord(low, high, true);
+			uint16_t value = cpu_readWord(addr, true);
 			a &= value;
 		}
 		cpu_setZN(a, mf);
 	}
 
-	void Cpu::cpu_ora(uint32_t low, uint32_t high) {
+	void Cpu::cpu_ora(Addr24 addr) {
 		if(mf) {
 			cpu_checkInt();
-			uint8_t value = cpu_read(low);
+			uint8_t value = cpu_read(addr);
 			a = (a & 0xff00) | ((a | value) & 0xff);
 		} else {
-			uint16_t value = cpu_readWord(low, high, true);
+			uint16_t value = cpu_readWord(addr, true);
 			a |= value;
 		}
 		cpu_setZN(a, mf);
 	}
 
-	void Cpu::cpu_eor(uint32_t low, uint32_t high) {
+	void Cpu::cpu_eor(Addr24 addr) {
 		if(mf) {
 			cpu_checkInt();
-			uint8_t value = cpu_read(low);
+			uint8_t value = cpu_read(addr);
 			a = (a & 0xff00) | ((a ^ value) & 0xff);
 		} else {
-			uint16_t value = cpu_readWord(low, high, true);
+			uint16_t value = cpu_readWord(addr, true);
 			a ^= value;
 		}
 		cpu_setZN(a, mf);
 	}
 
-	void Cpu::cpu_adc(uint32_t low, uint32_t high) {
+	void Cpu::cpu_adc(Addr24 addr) {
 		if(mf) {
 			cpu_checkInt();
-			uint8_t value = cpu_read(low);
+			uint8_t value = cpu_read(addr);
 			int result = 0;
 			if(d) {
 				result = (a & 0xf) + (value & 0xf) + c;
@@ -702,7 +717,7 @@ namespace LakeSnes
 			c = result > 0xff;
 			a = (a & 0xff00) | (result & 0xff);
 		} else {
-			uint16_t value = cpu_readWord(low, high, true);
+			uint16_t value = cpu_readWord(addr, true);
 			int result = 0;
 			if(d) {
 				result = (a & 0xf) + (value & 0xf) + c;
@@ -723,10 +738,10 @@ namespace LakeSnes
 		cpu_setZN(a, mf);
 	}
 
-	void Cpu::cpu_sbc(uint32_t low, uint32_t high) {
+	void Cpu::cpu_sbc(Addr24 addr) {
 		if(mf) {
 			cpu_checkInt();
-			uint8_t value = cpu_read(low) ^ 0xff;
+			uint8_t value = cpu_read(addr) ^ 0xff;
 			int result = 0;
 			if(d) {
 				result = (a & 0xf) + (value & 0xf) + c;
@@ -740,7 +755,7 @@ namespace LakeSnes
 			c = result > 0xff;
 			a = (a & 0xff00) | (result & 0xff);
 		} else {
-			uint16_t value = cpu_readWord(low, high, true) ^ 0xffff;
+			uint16_t value = cpu_readWord(addr, true) ^ 0xffff;
 			int result = 0;
 			if(d) {
 				result = (a & 0xf) + (value & 0xf) + c;
@@ -761,61 +776,61 @@ namespace LakeSnes
 		cpu_setZN(a, mf);
 	}
 
-	void Cpu::cpu_cmp(uint32_t low, uint32_t high) {
+	void Cpu::cpu_cmp(Addr24 addr) {
 		int result = 0;
 		if(mf) {
 			cpu_checkInt();
-			uint8_t value = cpu_read(low) ^ 0xff;
+			uint8_t value = cpu_read(addr) ^ 0xff;
 			result = (a & 0xff) + value + 1;
 			c = result > 0xff;
 		} else {
-			uint16_t value = cpu_readWord(low, high, true) ^ 0xffff;
+			uint16_t value = cpu_readWord(addr, true) ^ 0xffff;
 			result = a + value + 1;
 			c = result > 0xffff;
 		}
 		cpu_setZN(result, mf);
 	}
 
-	void Cpu::cpu_cpx(uint32_t low, uint32_t high) {
+	void Cpu::cpu_cpx(Addr24 addr) {
 		int result = 0;
 		if(xf) {
 			cpu_checkInt();
-			uint8_t value = cpu_read(low) ^ 0xff;
+			uint8_t value = cpu_read(addr) ^ 0xff;
 			result = (x & 0xff) + value + 1;
 			c = result > 0xff;
 		} else {
-			uint16_t value = cpu_readWord(low, high, true) ^ 0xffff;
+			uint16_t value = cpu_readWord(addr, true) ^ 0xffff;
 			result = x + value + 1;
 			c = result > 0xffff;
 		}
 		cpu_setZN(result, xf);
 	}
 
-	void Cpu::cpu_cpy(uint32_t low, uint32_t high) {
+	void Cpu::cpu_cpy(Addr24 addr) {
 		int result = 0;
 		if(xf) {
 			cpu_checkInt();
-			uint8_t value = cpu_read(low) ^ 0xff;
+			uint8_t value = cpu_read(addr) ^ 0xff;
 			result = (y & 0xff) + value + 1;
 			c = result > 0xff;
 		} else {
-			uint16_t value = cpu_readWord(low, high, true) ^ 0xffff;
+			uint16_t value = cpu_readWord(addr, true) ^ 0xffff;
 			result = y + value + 1;
 			c = result > 0xffff;
 		}
 		cpu_setZN(result, xf);
 	}
 
-	void Cpu::cpu_bit(uint32_t low, uint32_t high) {
+	void Cpu::cpu_bit(Addr24 addr) {
 		if(mf) {
 			cpu_checkInt();
-			uint8_t value = cpu_read(low);
+			uint8_t value = cpu_read(addr);
 			uint8_t result = (a & 0xff) & value;
 			z = result == 0;
 			n = value & 0x80;
 			v = value & 0x40;
 		} else {
-			uint16_t value = cpu_readWord(low, high, true);
+			uint16_t value = cpu_readWord(addr, true);
 			uint16_t result = a & value;
 			z = result == 0;
 			n = value & 0x8000;
@@ -823,203 +838,203 @@ namespace LakeSnes
 		}
 	}
 
-	void Cpu::cpu_lda(uint32_t low, uint32_t high) {
+	void Cpu::cpu_lda(Addr24 addr) {
 		if(mf) {
 			cpu_checkInt();
-			a = (a & 0xff00) | cpu_read(low);
+			a = (a & 0xff00) | cpu_read(addr);
 		} else {
-			a = cpu_readWord(low, high, true);
+			a = cpu_readWord(addr, true);
 		}
 		cpu_setZN(a, mf);
 	}
 
-	void Cpu::cpu_ldx(uint32_t low, uint32_t high) {
+	void Cpu::cpu_ldx(Addr24 addr) {
 		if(xf) {
 			cpu_checkInt();
-			x = cpu_read(low);
+			x = cpu_read(addr);
 		} else {
-			x = cpu_readWord(low, high, true);
+			x = cpu_readWord(addr, true);
 		}
 		cpu_setZN(x, xf);
 	}
 
-	void Cpu::cpu_ldy(uint32_t low, uint32_t high) {
+	void Cpu::cpu_ldy(Addr24 addr) {
 		if(xf) {
 			cpu_checkInt();
-			y = cpu_read(low);
+			y = cpu_read(addr);
 		} else {
-			y = cpu_readWord(low, high, true);
+			y = cpu_readWord(addr, true);
 		}
 		cpu_setZN(y, xf);
 	}
 
-	void Cpu::cpu_sta(uint32_t low, uint32_t high) {
+	void Cpu::cpu_sta(Addr24 addr) {
 		if(mf) {
 			cpu_checkInt();
-			cpu_write(low, a);
+			cpu_write(addr, a);
 		} else {
-			cpu_writeWord(low, high, a, false, true);
+			cpu_writeWord(addr, a, false, true);
 		}
 	}
 
-	void Cpu::cpu_stx(uint32_t low, uint32_t high) {
+	void Cpu::cpu_stx(Addr24 addr) {
 		if(xf) {
 			cpu_checkInt();
-			cpu_write(low, x);
+			cpu_write(addr, x);
 		} else {
-			cpu_writeWord(low, high, x, false, true);
+			cpu_writeWord(addr, x, false, true);
 		}
 	}
 
-	void Cpu::cpu_sty(uint32_t low, uint32_t high) {
+	void Cpu::cpu_sty(Addr24 addr) {
 		if(xf) {
 			cpu_checkInt();
-			cpu_write(low, y);
+			cpu_write(addr, y);
 		} else {
-			cpu_writeWord(low, high, y, false, true);
+			cpu_writeWord(addr, y, false, true);
 		}
 	}
 
-	void Cpu::cpu_stz(uint32_t low, uint32_t high) {
+	void Cpu::cpu_stz(Addr24 addr) {
 		if(mf) {
 			cpu_checkInt();
-			cpu_write(low, 0);
+			cpu_write(addr, 0);
 		} else {
-			cpu_writeWord(low, high, 0, false, true);
+			cpu_writeWord(addr, 0, false, true);
 		}
 	}
 
-	void Cpu::cpu_ror(uint32_t low, uint32_t high) {
+	void Cpu::cpu_ror(Addr24 addr) {
 		bool carry = false;
 		int result = 0;
 		if(mf) {
-			uint8_t value = cpu_read(low);
+			uint8_t value = cpu_read(addr);
 			cpu_idle();
 			carry = value & 1;
 			result = (value >> 1) | (c << 7);
 			cpu_checkInt();
-			cpu_write(low, result);
+			cpu_write(addr, result);
 		} else {
-			uint16_t value = cpu_readWord(low, high, false);
+			uint16_t value = cpu_readWord(addr, false);
 			cpu_idle();
 			carry = value & 1;
 			result = (value >> 1) | (c << 15);
-			cpu_writeWord(low, high, result, true, true);
+			cpu_writeWord(addr, result, true, true);
 		}
 		cpu_setZN(result, mf);
 		c = carry;
 	}
 
-	void Cpu::cpu_rol(uint32_t low, uint32_t high) {
+	void Cpu::cpu_rol(Addr24 addr) {
 		int result = 0;
 		if(mf) {
-			result = (cpu_read(low) << 1) | c;
+			result = (cpu_read(addr) << 1) | c;
 			cpu_idle();
 			c = result & 0x100;
 			cpu_checkInt();
-			cpu_write(low, result);
+			cpu_write(addr, result);
 		} else {
-			result = (cpu_readWord(low, high, false) << 1) | c;
+			result = (cpu_readWord(addr, false) << 1) | c;
 			cpu_idle();
 			c = result & 0x10000;
-			cpu_writeWord(low, high, result, true, true);
+			cpu_writeWord(addr, result, true, true);
 		}
 		cpu_setZN(result, mf);
 	}
 
-	void Cpu::cpu_lsr(uint32_t low, uint32_t high) {
+	void Cpu::cpu_lsr(Addr24 addr) {
 		int result = 0;
 		if(mf) {
-			uint8_t value = cpu_read(low);
+			uint8_t value = cpu_read(addr);
 			cpu_idle();
 			c = value & 1;
 			result = value >> 1;
 			cpu_checkInt();
-			cpu_write(low, result);
+			cpu_write(addr, result);
 		} else {
-			uint16_t value = cpu_readWord(low, high, false);
+			uint16_t value = cpu_readWord(addr, false);
 			cpu_idle();
 			c = value & 1;
 			result = value >> 1;
-			cpu_writeWord(low, high, result, true, true);
+			cpu_writeWord(addr, result, true, true);
 		}
 		cpu_setZN(result, mf);
 	}
 
-	void Cpu::cpu_asl(uint32_t low, uint32_t high) {
+	void Cpu::cpu_asl(Addr24 addr) {
 		int result = 0;
 		if(mf) {
-			result = cpu_read(low) << 1;
+			result = cpu_read(addr) << 1;
 			cpu_idle();
 			c = result & 0x100;
 			cpu_checkInt();
-			cpu_write(low, result);
+			cpu_write(addr, result);
 		} else {
-			result = cpu_readWord(low, high, false) << 1;
+			result = cpu_readWord(addr, false) << 1;
 			cpu_idle();
 			c = result & 0x10000;
-			cpu_writeWord(low, high, result, true, true);
+			cpu_writeWord(addr, result, true, true);
 		}
 		cpu_setZN(result, mf);
 	}
 
-	void Cpu::cpu_inc(uint32_t low, uint32_t high) {
+	void Cpu::cpu_inc(Addr24 addr) {
 		int result = 0;
 		if(mf) {
-			result = cpu_read(low) + 1;
+			result = cpu_read(addr) + 1;
 			cpu_idle();
 			cpu_checkInt();
-			cpu_write(low, result);
+			cpu_write(addr, result);
 		} else {
-			result = cpu_readWord(low, high, false) + 1;
+			result = cpu_readWord(addr, false) + 1;
 			cpu_idle();
-			cpu_writeWord(low, high, result, true, true);
+			cpu_writeWord(addr, result, true, true);
 		}
 		cpu_setZN(result, mf);
 	}
 
-	void Cpu::cpu_dec(uint32_t low, uint32_t high) {
+	void Cpu::cpu_dec(Addr24 addr) {
 		int result = 0;
 		if(mf) {
-			result = cpu_read(low) - 1;
+			result = cpu_read(addr) - 1;
 			cpu_idle();
 			cpu_checkInt();
-			cpu_write(low, result);
+			cpu_write(addr, result);
 		} else {
-			result = cpu_readWord(low, high, false) - 1;
+			result = cpu_readWord(addr, false) - 1;
 			cpu_idle();
-			cpu_writeWord(low, high, result, true, true);
+			cpu_writeWord(addr, result, true, true);
 		}
 		cpu_setZN(result, mf);
 	}
 
-	void Cpu::cpu_tsb(uint32_t low, uint32_t high) {
+	void Cpu::cpu_tsb(Addr24 addr) {
 		if(mf) {
-			uint8_t value = cpu_read(low);
+			uint8_t value = cpu_read(addr);
 			cpu_idle();
 			z = ((a & 0xff) & value) == 0;
 			cpu_checkInt();
-			cpu_write(low, value | (a & 0xff));
+			cpu_write(addr, value | (a & 0xff));
 		} else {
-			uint16_t value = cpu_readWord(low, high, false);
+			uint16_t value = cpu_readWord(addr, false);
 			cpu_idle();
 			z = (a & value) == 0;
-			cpu_writeWord(low, high, value | a, true, true);
+			cpu_writeWord(addr, value | a, true, true);
 		}
 	}
 
-	void Cpu::cpu_trb(uint32_t low, uint32_t high) {
+	void Cpu::cpu_trb(Addr24 addr) {
 		if(mf) {
-			uint8_t value = cpu_read(low);
+			uint8_t value = cpu_read(addr);
 			cpu_idle();
 			z = ((a & 0xff) & value) == 0;
 			cpu_checkInt();
-			cpu_write(low, value & ~(a & 0xff));
+			cpu_write(addr, value & ~(a & 0xff));
 		} else {
-			uint16_t value = cpu_readWord(low, high, false);
+			uint16_t value = cpu_readWord(addr, false);
 			cpu_idle();
 			z = (a & value) == 0;
-			cpu_writeWord(low, high, value & ~a, true, true);
+			cpu_writeWord(addr, value & ~a, true, true);
 		}
 	}
 
@@ -1038,9 +1053,8 @@ namespace LakeSnes
 				break;
 			}
 			case 0x01: { // ora idx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIdx(&low);
-				cpu_ora(low, high);
+				auto addr = cpu_adrIdx();
+				cpu_ora(addr);
 				break;
 			}
 			case 0x02: { // cop imm(s)
@@ -1056,33 +1070,28 @@ namespace LakeSnes
 				break;
 			}
 			case 0x03: { // ora sr
-				uint32_t low = 0;
-				uint32_t high = cpu_adrSr(&low);
-				cpu_ora(low, high);
+				auto addr = cpu_adrSr();
+				cpu_ora(addr);
 				break;
 			}
 			case 0x04: { // tsb dp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDp(&low);
-				cpu_tsb(low, high);
+				auto addr = cpu_adrDp();
+				cpu_tsb(addr);
 				break;
 			}
 			case 0x05: { // ora dp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDp(&low);
-				cpu_ora(low, high);
+				auto addr = cpu_adrDp();
+				cpu_ora(addr);
 				break;
 			}
 			case 0x06: { // asl dp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDp(&low);
-				cpu_asl(low, high);
+				auto addr = cpu_adrDp();
+				cpu_asl(addr);
 				break;
 			}
 			case 0x07: { // ora idl
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIdl(&low);
-				cpu_ora(low, high);
+				auto addr = cpu_adrIdl();
+				cpu_ora(addr);
 				break;
 			}
 			case 0x08: { // php imp
@@ -1092,9 +1101,8 @@ namespace LakeSnes
 				break;
 			}
 			case 0x09: { // ora imm(m)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrImm(&low, false);
-				cpu_ora(low, high);
+				auto addr = cpu_adrImm(false);
+				cpu_ora(addr);
 				break;
 			}
 			case 0x0a: { // asla imp
@@ -1115,27 +1123,23 @@ namespace LakeSnes
 				break;
 			}
 			case 0x0c: { // tsb abs
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbs(&low);
-				cpu_tsb(low, high);
+				auto addr = cpu_adrAbs();
+				cpu_tsb(addr);
 				break;
 			}
 			case 0x0d: { // ora abs
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbs(&low);
-				cpu_ora(low, high);
+				auto addr = cpu_adrAbs();
+				cpu_ora(addr);
 				break;
 			}
 			case 0x0e: { // asl abs
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbs(&low);
-				cpu_asl(low, high);
+				auto addr = cpu_adrAbs();
+				cpu_asl(addr);
 				break;
 			}
 			case 0x0f: { // ora abl
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbl(&low);
-				cpu_ora(low, high);
+				auto addr = cpu_adrAbl();
+				cpu_ora(addr);
 				break;
 			}
 			case 0x10: { // bpl rel
@@ -1143,45 +1147,38 @@ namespace LakeSnes
 				break;
 			}
 			case 0x11: { // ora idy(r)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIdy(&low, false);
-				cpu_ora(low, high);
+				auto addr = cpu_adrIdy(false);
+				cpu_ora(addr);
 				break;
 			}
 			case 0x12: { // ora idp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIdp(&low);
-				cpu_ora(low, high);
+				auto addr = cpu_adrIdp();
+				cpu_ora(addr);
 				break;
 			}
 			case 0x13: { // ora isy
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIsy(&low);
-				cpu_ora(low, high);
+				auto addr = cpu_adrIsy();
+				cpu_ora(addr);
 				break;
 			}
 			case 0x14: { // trb dp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDp(&low);
-				cpu_trb(low, high);
+				auto addr = cpu_adrDp();
+				cpu_trb(addr);
 				break;
 			}
 			case 0x15: { // ora dpx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDpx(&low);
-				cpu_ora(low, high);
+				auto addr = cpu_adrDpx();
+				cpu_ora(addr);
 				break;
 			}
 			case 0x16: { // asl dpx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDpx(&low);
-				cpu_asl(low, high);
+				auto addr = cpu_adrDpx();
+				cpu_asl(addr);
 				break;
 			}
 			case 0x17: { // ora ily
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIly(&low);
-				cpu_ora(low, high);
+				auto addr = cpu_adrIly();
+				cpu_ora(addr);
 				break;
 			}
 			case 0x18: { // clc imp
@@ -1190,9 +1187,8 @@ namespace LakeSnes
 				break;
 			}
 			case 0x19: { // ora aby(r)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAby(&low, false);
-				cpu_ora(low, high);
+				auto addr = cpu_adrAby(false);
+				cpu_ora(addr);
 				break;
 			}
 			case 0x1a: { // inca imp
@@ -1211,27 +1207,23 @@ namespace LakeSnes
 				break;
 			}
 			case 0x1c: { // trb abs
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbs(&low);
-				cpu_trb(low, high);
+				auto addr = cpu_adrAbs();
+				cpu_trb(addr);
 				break;
 			}
 			case 0x1d: { // ora abx(r)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbx(&low, false);
-				cpu_ora(low, high);
+				auto addr = cpu_adrAbx(false);
+				cpu_ora(addr);
 				break;
 			}
 			case 0x1e: { // asl abx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbx(&low, true);
-				cpu_asl(low, high);
+				auto addr = cpu_adrAbx(true);
+				cpu_asl(addr);
 				break;
 			}
 			case 0x1f: { // ora alx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAlx(&low);
-				cpu_ora(low, high);
+				auto addr = cpu_adrAlx();
+				cpu_ora(addr);
 				break;
 			}
 			case 0x20: { // jsr abs
@@ -1242,9 +1234,8 @@ namespace LakeSnes
 				break;
 			}
 			case 0x21: { // and idx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIdx(&low);
-				cpu_and(low, high);
+				auto addr = cpu_adrIdx();
+				cpu_and(addr);
 				break;
 			}
 			case 0x22: { // jsl abl
@@ -1258,33 +1249,28 @@ namespace LakeSnes
 				break;
 			}
 			case 0x23: { // and sr
-				uint32_t low = 0;
-				uint32_t high = cpu_adrSr(&low);
-				cpu_and(low, high);
+				auto addr = cpu_adrSr();
+				cpu_and(addr);
 				break;
 			}
 			case 0x24: { // bit dp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDp(&low);
-				cpu_bit(low, high);
+				auto addr = cpu_adrDp();
+				cpu_bit(addr);
 				break;
 			}
 			case 0x25: { // and dp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDp(&low);
-				cpu_and(low, high);
+				auto addr = cpu_adrDp();
+				cpu_and(addr);
 				break;
 			}
 			case 0x26: { // rol dp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDp(&low);
-				cpu_rol(low, high);
+				auto addr = cpu_adrDp();
+				cpu_rol(addr);
 				break;
 			}
 			case 0x27: { // and idl
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIdl(&low);
-				cpu_and(low, high);
+				auto addr = cpu_adrIdl();
+				cpu_and(addr);
 				break;
 			}
 			case 0x28: { // plp imp
@@ -1295,9 +1281,8 @@ namespace LakeSnes
 				break;
 			}
 			case 0x29: { // and imm(m)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrImm(&low, false);
-				cpu_and(low, high);
+				auto addr = cpu_adrImm(false);
+				cpu_and(addr);
 				break;
 			}
 			case 0x2a: { // rola imp
@@ -1321,27 +1306,23 @@ namespace LakeSnes
 				break;
 			}
 			case 0x2c: { // bit abs
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbs(&low);
-				cpu_bit(low, high);
+				auto addr = cpu_adrAbs();
+				cpu_bit(addr);
 				break;
 			}
 			case 0x2d: { // and abs
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbs(&low);
-				cpu_and(low, high);
+				auto addr = cpu_adrAbs();
+				cpu_and(addr);
 				break;
 			}
 			case 0x2e: { // rol abs
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbs(&low);
-				cpu_rol(low, high);
+				auto addr = cpu_adrAbs();
+				cpu_rol(addr);
 				break;
 			}
 			case 0x2f: { // and abl
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbl(&low);
-				cpu_and(low, high);
+				auto addr = cpu_adrAbl();
+				cpu_and(addr);
 				break;
 			}
 			case 0x30: { // bmi rel
@@ -1349,45 +1330,38 @@ namespace LakeSnes
 				break;
 			}
 			case 0x31: { // and idy(r)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIdy(&low, false);
-				cpu_and(low, high);
+				auto addr = cpu_adrIdy(false);
+				cpu_and(addr);
 				break;
 			}
 			case 0x32: { // and idp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIdp(&low);
-				cpu_and(low, high);
+				auto addr = cpu_adrIdp();
+				cpu_and(addr);
 				break;
 			}
 			case 0x33: { // and isy
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIsy(&low);
-				cpu_and(low, high);
+				auto addr = cpu_adrIsy();
+				cpu_and(addr);
 				break;
 			}
 			case 0x34: { // bit dpx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDpx(&low);
-				cpu_bit(low, high);
+				auto addr = cpu_adrDpx();
+				cpu_bit(addr);
 				break;
 			}
 			case 0x35: { // and dpx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDpx(&low);
-				cpu_and(low, high);
+				auto addr = cpu_adrDpx();
+				cpu_and(addr);
 				break;
 			}
 			case 0x36: { // rol dpx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDpx(&low);
-				cpu_rol(low, high);
+				auto addr = cpu_adrDpx();
+				cpu_rol(addr);
 				break;
 			}
 			case 0x37: { // and ily
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIly(&low);
-				cpu_and(low, high);
+				auto addr = cpu_adrIly();
+				cpu_and(addr);
 				break;
 			}
 			case 0x38: { // sec imp
@@ -1396,9 +1370,8 @@ namespace LakeSnes
 				break;
 			}
 			case 0x39: { // and aby(r)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAby(&low, false);
-				cpu_and(low, high);
+				auto addr = cpu_adrAby(false);
+				cpu_and(addr);
 				break;
 			}
 			case 0x3a: { // deca imp
@@ -1418,27 +1391,23 @@ namespace LakeSnes
 				break;
 			}
 			case 0x3c: { // bit abx(r)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbx(&low, false);
-				cpu_bit(low, high);
+				auto addr = cpu_adrAbx(false);
+				cpu_bit(addr);
 				break;
 			}
 			case 0x3d: { // and abx(r)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbx(&low, false);
-				cpu_and(low, high);
+				auto addr = cpu_adrAbx(false);
+				cpu_and(addr);
 				break;
 			}
 			case 0x3e: { // rol abx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbx(&low, true);
-				cpu_rol(low, high);
+				auto addr = cpu_adrAbx(true);
+				cpu_rol(addr);
 				break;
 			}
 			case 0x3f: { // and alx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAlx(&low);
-				cpu_and(low, high);
+				auto addr = cpu_adrAlx();
+				cpu_and(addr);
 				break;
 			}
 			case 0x40: { // rti imp
@@ -1451,9 +1420,8 @@ namespace LakeSnes
 				break;
 			}
 			case 0x41: { // eor idx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIdx(&low);
-				cpu_eor(low, high);
+				auto addr = cpu_adrIdx();
+				cpu_eor(addr);
 				break;
 			}
 			case 0x42: { // wdm imm(s)
@@ -1462,9 +1430,8 @@ namespace LakeSnes
 				break;
 			}
 			case 0x43: { // eor sr
-				uint32_t low = 0;
-				uint32_t high = cpu_adrSr(&low);
-				cpu_eor(low, high);
+				auto addr = cpu_adrSr();
+				cpu_eor(addr);
 				break;
 			}
 			case 0x44: { // mvp bm
@@ -1488,21 +1455,18 @@ namespace LakeSnes
 				break;
 			}
 			case 0x45: { // eor dp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDp(&low);
-				cpu_eor(low, high);
+				auto addr = cpu_adrDp();
+				cpu_eor(addr);
 				break;
 			}
 			case 0x46: { // lsr dp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDp(&low);
-				cpu_lsr(low, high);
+				auto addr = cpu_adrDp();
+				cpu_lsr(addr);
 				break;
 			}
 			case 0x47: { // eor idl
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIdl(&low);
-				cpu_eor(low, high);
+				auto addr = cpu_adrIdl();
+				cpu_eor(addr);
 				break;
 			}
 			case 0x48: { // pha imp
@@ -1516,9 +1480,8 @@ namespace LakeSnes
 				break;
 			}
 			case 0x49: { // eor imm(m)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrImm(&low, false);
-				cpu_eor(low, high);
+				auto addr = cpu_adrImm(false);
+				cpu_eor(addr);
 				break;
 			}
 			case 0x4a: { // lsra imp
@@ -1543,21 +1506,18 @@ namespace LakeSnes
 				break;
 			}
 			case 0x4d: { // eor abs
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbs(&low);
-				cpu_eor(low, high);
+				auto addr = cpu_adrAbs();
+				cpu_eor(addr);
 				break;
 			}
 			case 0x4e: { // lsr abs
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbs(&low);
-				cpu_lsr(low, high);
+				auto addr = cpu_adrAbs();
+				cpu_lsr(addr);
 				break;
 			}
 			case 0x4f: { // eor abl
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbl(&low);
-				cpu_eor(low, high);
+				auto addr = cpu_adrAbl();
+				cpu_eor(addr);
 				break;
 			}
 			case 0x50: { // bvc rel
@@ -1565,21 +1525,18 @@ namespace LakeSnes
 				break;
 			}
 			case 0x51: { // eor idy(r)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIdy(&low, false);
-				cpu_eor(low, high);
+				auto addr = cpu_adrIdy(false);
+				cpu_eor(addr);
 				break;
 			}
 			case 0x52: { // eor idp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIdp(&low);
-				cpu_eor(low, high);
+				auto addr = cpu_adrIdp();
+				cpu_eor(addr);
 				break;
 			}
 			case 0x53: { // eor isy
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIsy(&low);
-				cpu_eor(low, high);
+				auto addr = cpu_adrIsy();
+				cpu_eor(addr);
 				break;
 			}
 			case 0x54: { // mvn bm
@@ -1603,21 +1560,18 @@ namespace LakeSnes
 				break;
 			}
 			case 0x55: { // eor dpx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDpx(&low);
-				cpu_eor(low, high);
+				auto addr = cpu_adrDpx();
+				cpu_eor(addr);
 				break;
 			}
 			case 0x56: { // lsr dpx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDpx(&low);
-				cpu_lsr(low, high);
+				auto addr = cpu_adrDpx();
+				cpu_lsr(addr);
 				break;
 			}
 			case 0x57: { // eor ily
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIly(&low);
-				cpu_eor(low, high);
+				auto addr = cpu_adrIly();
+				cpu_eor(addr);
 				break;
 			}
 			case 0x58: { // cli imp
@@ -1626,9 +1580,8 @@ namespace LakeSnes
 				break;
 			}
 			case 0x59: { // eor aby(r)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAby(&low, false);
-				cpu_eor(low, high);
+				auto addr = cpu_adrAby(false);
+				cpu_eor(addr);
 				break;
 			}
 			case 0x5a: { // phy imp
@@ -1655,21 +1608,18 @@ namespace LakeSnes
 				break;
 			}
 			case 0x5d: { // eor abx(r)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbx(&low, false);
-				cpu_eor(low, high);
+				auto addr = cpu_adrAbx(false);
+				cpu_eor(addr);
 				break;
 			}
 			case 0x5e: { // lsr abx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbx(&low, true);
-				cpu_lsr(low, high);
+					auto addr = cpu_adrAbx(true);
+				cpu_lsr(addr);
 				break;
 			}
 			case 0x5f: { // eor alx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAlx(&low);
-				cpu_eor(low, high);
+				auto addr = cpu_adrAlx();
+				cpu_eor(addr);
 				break;
 			}
 			case 0x60: { // rts imp
@@ -1681,9 +1631,8 @@ namespace LakeSnes
 				break;
 			}
 			case 0x61: { // adc idx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIdx(&low);
-				cpu_adc(low, high);
+				auto addr = cpu_adrIdx();
+				cpu_adc(addr);
 				break;
 			}
 			case 0x62: { // per rll
@@ -1693,33 +1642,28 @@ namespace LakeSnes
 				break;
 			}
 			case 0x63: { // adc sr
-				uint32_t low = 0;
-				uint32_t high = cpu_adrSr(&low);
-				cpu_adc(low, high);
+				auto addr = cpu_adrSr();
+				cpu_adc(addr);
 				break;
 			}
 			case 0x64: { // stz dp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDp(&low);
-				cpu_stz(low, high);
+				auto addr = cpu_adrDp();
+				cpu_stz(addr);
 				break;
 			}
 			case 0x65: { // adc dp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDp(&low);
-				cpu_adc(low, high);
+				auto addr = cpu_adrDp();
+				cpu_adc(addr);
 				break;
 			}
 			case 0x66: { // ror dp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDp(&low);
-				cpu_ror(low, high);
+				auto addr = cpu_adrDp();
+				cpu_ror(addr);
 				break;
 			}
 			case 0x67: { // adc idl
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIdl(&low);
-				cpu_adc(low, high);
+				auto addr = cpu_adrIdl();
+				cpu_adc(addr);
 				break;
 			}
 			case 0x68: { // pla imp
@@ -1735,9 +1679,8 @@ namespace LakeSnes
 				break;
 			}
 			case 0x69: { // adc imm(m)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrImm(&low, false);
-				cpu_adc(low, high);
+				auto addr = cpu_adrImm(false);
+				cpu_adc(addr);
 				break;
 			}
 			case 0x6a: { // rora imp
@@ -1766,21 +1709,18 @@ namespace LakeSnes
 				break;
 			}
 			case 0x6d: { // adc abs
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbs(&low);
-				cpu_adc(low, high);
+				auto addr = cpu_adrAbs();
+				cpu_adc(addr);
 				break;
 			}
 			case 0x6e: { // ror abs
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbs(&low);
-				cpu_ror(low, high);
+				auto addr = cpu_adrAbs();
+				cpu_ror(addr);
 				break;
 			}
 			case 0x6f: { // adc abl
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbl(&low);
-				cpu_adc(low, high);
+				auto addr = cpu_adrAbl();
+				cpu_adc(addr);
 				break;
 			}
 			case 0x70: { // bvs rel
@@ -1788,45 +1728,38 @@ namespace LakeSnes
 				break;
 			}
 			case 0x71: { // adc idy(r)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIdy(&low, false);
-				cpu_adc(low, high);
+				auto addr = cpu_adrIdy(false);
+				cpu_adc(addr);
 				break;
 			}
 			case 0x72: { // adc idp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIdp(&low);
-				cpu_adc(low, high);
+				auto addr = cpu_adrIdp();
+				cpu_adc(addr);
 				break;
 			}
 			case 0x73: { // adc isy
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIsy(&low);
-				cpu_adc(low, high);
+				auto addr = cpu_adrIsy();
+				cpu_adc(addr);
 				break;
 			}
 			case 0x74: { // stz dpx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDpx(&low);
-				cpu_stz(low, high);
+					auto addr = cpu_adrDpx();
+				cpu_stz(addr);
 				break;
 			}
 			case 0x75: { // adc dpx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDpx(&low);
-				cpu_adc(low, high);
+				auto addr = cpu_adrDpx();
+				cpu_adc(addr);
 				break;
 			}
 			case 0x76: { // ror dpx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDpx(&low);
-				cpu_ror(low, high);
+				auto addr = cpu_adrDpx();
+				cpu_ror(addr);
 				break;
 			}
 			case 0x77: { // adc ily
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIly(&low);
-				cpu_adc(low, high);
+				auto addr = cpu_adrIly();
+				cpu_adc(addr);
 				break;
 			}
 			case 0x78: { // sei imp
@@ -1835,9 +1768,8 @@ namespace LakeSnes
 				break;
 			}
 			case 0x79: { // adc aby(r)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAby(&low, false);
-				cpu_adc(low, high);
+				auto addr = cpu_adrAby(false);
+				cpu_adc(addr);
 				break;
 			}
 			case 0x7a: { // ply imp
@@ -1865,21 +1797,18 @@ namespace LakeSnes
 				break;
 			}
 			case 0x7d: { // adc abx(r)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbx(&low, false);
-				cpu_adc(low, high);
+				auto addr = cpu_adrAbx(false);
+				cpu_adc(addr);
 				break;
 			}
 			case 0x7e: { // ror abx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbx(&low, true);
-				cpu_ror(low, high);
+				auto addr = cpu_adrAbx(true);
+				cpu_ror(addr);
 				break;
 			}
 			case 0x7f: { // adc alx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAlx(&low);
-				cpu_adc(low, high);
+				auto addr = cpu_adrAlx();
+				cpu_adc(addr);
 				break;
 			}
 			case 0x80: { // bra rel
@@ -1887,9 +1816,8 @@ namespace LakeSnes
 				break;
 			}
 			case 0x81: { // sta idx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIdx(&low);
-				cpu_sta(low, high);
+				auto addr = cpu_adrIdx();
+				cpu_sta(addr);
 				break;
 			}
 			case 0x82: { // brl rll
@@ -1899,33 +1827,28 @@ namespace LakeSnes
 				break;
 			}
 			case 0x83: { // sta sr
-				uint32_t low = 0;
-				uint32_t high = cpu_adrSr(&low);
-				cpu_sta(low, high);
+				auto addr = cpu_adrSr();
+				cpu_sta(addr);
 				break;
 			}
 			case 0x84: { // sty dp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDp(&low);
-				cpu_sty(low, high);
+				auto addr = cpu_adrDp();
+				cpu_sty(addr);
 				break;
 			}
 			case 0x85: { // sta dp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDp(&low);
-				cpu_sta(low, high);
+				auto addr = cpu_adrDp();
+				cpu_sta(addr);
 				break;
 			}
 			case 0x86: { // stx dp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDp(&low);
-				cpu_stx(low, high);
+				auto addr = cpu_adrDp();
+				cpu_stx(addr);
 				break;
 			}
 			case 0x87: { // sta idl
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIdl(&low);
-				cpu_sta(low, high);
+				auto addr = cpu_adrIdl();
+				cpu_sta(addr);
 				break;
 			}
 			case 0x88: { // dey imp
@@ -1966,27 +1889,23 @@ namespace LakeSnes
 				break;
 			}
 			case 0x8c: { // sty abs
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbs(&low);
-				cpu_sty(low, high);
+				auto addr = cpu_adrAbs();
+				cpu_sty(addr);
 				break;
 			}
 			case 0x8d: { // sta abs
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbs(&low);
-				cpu_sta(low, high);
+				auto addr = cpu_adrAbs();
+				cpu_sta(addr);
 				break;
 			}
 			case 0x8e: { // stx abs
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbs(&low);
-				cpu_stx(low, high);
+				auto addr = cpu_adrAbs();
+				cpu_stx(addr);
 				break;
 			}
 			case 0x8f: { // sta abl
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbl(&low);
-				cpu_sta(low, high);
+				auto addr = cpu_adrAbl();
+				cpu_sta(addr);
 				break;
 			}
 			case 0x90: { // bcc rel
@@ -1994,45 +1913,38 @@ namespace LakeSnes
 				break;
 			}
 			case 0x91: { // sta idy
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIdy(&low, true);
-				cpu_sta(low, high);
+				auto addr = cpu_adrIdy(true);
+				cpu_sta(addr);
 				break;
 			}
 			case 0x92: { // sta idp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIdp(&low);
-				cpu_sta(low, high);
+				auto addr = cpu_adrIdp();
+				cpu_sta(addr);
 				break;
 			}
 			case 0x93: { // sta isy
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIsy(&low);
-				cpu_sta(low, high);
+				auto addr = cpu_adrIsy();
+				cpu_sta(addr);
 				break;
 			}
 			case 0x94: { // sty dpx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDpx(&low);
-				cpu_sty(low, high);
+				auto addr = cpu_adrDpx();
+				cpu_sty(addr);
 				break;
 			}
 			case 0x95: { // sta dpx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDpx(&low);
-				cpu_sta(low, high);
+				auto addr = cpu_adrDpx();
+				cpu_sta(addr);
 				break;
 			}
 			case 0x96: { // stx dpy
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDpy(&low);
-				cpu_stx(low, high);
+				auto addr = cpu_adrDpy();
+				cpu_stx(addr);
 				break;
 			}
 			case 0x97: { // sta ily
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIly(&low);
-				cpu_sta(low, high);
+				auto addr = cpu_adrIly();
+				cpu_sta(addr);
 				break;
 			}
 			case 0x98: { // tya imp
@@ -2046,9 +1958,8 @@ namespace LakeSnes
 				break;
 			}
 			case 0x99: { // sta aby
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAby(&low, true);
-				cpu_sta(low, high);
+				auto addr = cpu_adrAby(true);
+				cpu_sta(addr);
 				break;
 			}
 			case 0x9a: { // txs imp
@@ -2067,75 +1978,63 @@ namespace LakeSnes
 				break;
 			}
 			case 0x9c: { // stz abs
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbs(&low);
-				cpu_stz(low, high);
+				auto addr = cpu_adrAbs();
+				cpu_stz(addr);
 				break;
 			}
 			case 0x9d: { // sta abx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbx(&low, true);
-				cpu_sta(low, high);
+				auto addr = cpu_adrAbx(true);
+				cpu_sta(addr);
 				break;
 			}
 			case 0x9e: { // stz abx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbx(&low, true);
-				cpu_stz(low, high);
+				auto addr = cpu_adrAbx(true);
+				cpu_stz(addr);
 				break;
 			}
 			case 0x9f: { // sta alx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAlx(&low);
-				cpu_sta(low, high);
+				auto addr = cpu_adrAlx();
+				cpu_sta(addr);
 				break;
 			}
 			case 0xa0: { // ldy imm(x)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrImm(&low, true);
-				cpu_ldy(low, high);
+				auto addr = cpu_adrImm(true);
+				cpu_ldy(addr);
 				break;
 			}
 			case 0xa1: { // lda idx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIdx(&low);
-				cpu_lda(low, high);
+				auto addr = cpu_adrIdx();
+				cpu_lda(addr);
 				break;
 			}
 			case 0xa2: { // ldx imm(x)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrImm(&low, true);
-				cpu_ldx(low, high);
+				auto addr = cpu_adrImm(true);
+				cpu_ldx(addr);
 				break;
 			}
 			case 0xa3: { // lda sr
-				uint32_t low = 0;
-				uint32_t high = cpu_adrSr(&low);
-				cpu_lda(low, high);
+				auto addr = cpu_adrSr();
+				cpu_lda(addr);
 				break;
 			}
 			case 0xa4: { // ldy dp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDp(&low);
-				cpu_ldy(low, high);
+				auto addr =  cpu_adrDp();
+				cpu_ldy(addr);
 				break;
 			}
 			case 0xa5: { // lda dp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDp(&low);
-				cpu_lda(low, high);
+				auto addr = cpu_adrDp();
+				cpu_lda(addr);
 				break;
 			}
 			case 0xa6: { // ldx dp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDp(&low);
-				cpu_ldx(low, high);
+				auto addr = cpu_adrDp();
+				cpu_ldx(addr);
 				break;
 			}
 			case 0xa7: { // lda idl
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIdl(&low);
-				cpu_lda(low, high);
+				auto addr = cpu_adrIdl();
+				cpu_lda(addr);
 				break;
 			}
 			case 0xa8: { // tay imp
@@ -2149,9 +2048,8 @@ namespace LakeSnes
 				break;
 			}
 			case 0xa9: { // lda imm(m)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrImm(&low, false);
-				cpu_lda(low, high);
+				auto addr = cpu_adrImm(false);
+				cpu_lda(addr);
 				break;
 			}
 			case 0xaa: { // tax imp
@@ -2173,27 +2071,23 @@ namespace LakeSnes
 				break;
 			}
 			case 0xac: { // ldy abs
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbs(&low);
-				cpu_ldy(low, high);
+				auto addr = cpu_adrAbs();
+				cpu_ldy(addr);
 				break;
 			}
 			case 0xad: { // lda abs
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbs(&low);
-				cpu_lda(low, high);
+				auto addr = cpu_adrAbs();
+				cpu_lda(addr);
 				break;
 			}
 			case 0xae: { // ldx abs
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbs(&low);
-				cpu_ldx(low, high);
+				auto addr = cpu_adrAbs();
+				cpu_ldx(addr);
 				break;
 			}
 			case 0xaf: { // lda abl
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbl(&low);
-				cpu_lda(low, high);
+				auto addr = cpu_adrAbl();
+				cpu_lda(addr);
 				break;
 			}
 			case 0xb0: { // bcs rel
@@ -2201,45 +2095,38 @@ namespace LakeSnes
 				break;
 			}
 			case 0xb1: { // lda idy(r)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIdy(&low, false);
-				cpu_lda(low, high);
+				auto addr = cpu_adrIdy(false);
+				cpu_lda(addr);
 				break;
 			}
 			case 0xb2: { // lda idp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIdp(&low);
-				cpu_lda(low, high);
+				auto addr = cpu_adrIdp();
+				cpu_lda(addr);
 				break;
 			}
 			case 0xb3: { // lda isy
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIsy(&low);
-				cpu_lda(low, high);
+				auto addr = cpu_adrIsy();
+				cpu_lda(addr);
 				break;
 			}
 			case 0xb4: { // ldy dpx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDpx(&low);
-				cpu_ldy(low, high);
+				auto addr = cpu_adrDpx();
+				cpu_ldy(addr);
 				break;
 			}
 			case 0xb5: { // lda dpx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDpx(&low);
-				cpu_lda(low, high);
+				auto addr = cpu_adrDpx();
+				cpu_lda(addr);
 				break;
 			}
 			case 0xb6: { // ldx dpy
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDpy(&low);
-				cpu_ldx(low, high);
+				auto addr = cpu_adrDpy();
+				cpu_ldx(addr);
 				break;
 			}
 			case 0xb7: { // lda ily
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIly(&low);
-				cpu_lda(low, high);
+				auto addr = cpu_adrIly();
+				cpu_lda(addr);
 				break;
 			}
 			case 0xb8: { // clv imp
@@ -2248,9 +2135,8 @@ namespace LakeSnes
 				break;
 			}
 			case 0xb9: { // lda aby(r)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAby(&low, false);
-				cpu_lda(low, high);
+				auto addr = cpu_adrAby(false);
+				cpu_lda(addr);
 				break;
 			}
 			case 0xba: { // tsx imp
@@ -2274,39 +2160,33 @@ namespace LakeSnes
 				break;
 			}
 			case 0xbc: { // ldy abx(r)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbx(&low, false);
-				cpu_ldy(low, high);
+				auto addr = cpu_adrAbx(false);
+				cpu_ldy(addr);
 				break;
 			}
 			case 0xbd: { // lda abx(r)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbx(&low, false);
-				cpu_lda(low, high);
+					auto addr = cpu_adrAbx(false);
+				cpu_lda(addr);
 				break;
 			}
 			case 0xbe: { // ldx aby(r)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAby(&low, false);
-				cpu_ldx(low, high);
+				auto addr = cpu_adrAby(false);
+				cpu_ldx(addr);
 				break;
 			}
 			case 0xbf: { // lda alx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAlx(&low);
-				cpu_lda(low, high);
+				auto addr = cpu_adrAlx();
+				cpu_lda(addr);
 				break;
 			}
 			case 0xc0: { // cpy imm(x)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrImm(&low, true);
-				cpu_cpy(low, high);
+				auto addr = cpu_adrImm(true);
+				cpu_cpy(addr);
 				break;
 			}
 			case 0xc1: { // cmp idx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIdx(&low);
-				cpu_cmp(low, high);
+				auto addr = cpu_adrIdx();
+				cpu_cmp(addr);
 				break;
 			}
 			case 0xc2: { // rep imm(s)
@@ -2317,33 +2197,28 @@ namespace LakeSnes
 				break;
 			}
 			case 0xc3: { // cmp sr
-				uint32_t low = 0;
-				uint32_t high = cpu_adrSr(&low);
-				cpu_cmp(low, high);
+					auto addr = cpu_adrSr();
+				cpu_cmp(addr);
 				break;
 			}
 			case 0xc4: { // cpy dp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDp(&low);
-				cpu_cpy(low, high);
+				auto addr = cpu_adrDp();
+				cpu_cpy(addr);
 				break;
 			}
 			case 0xc5: { // cmp dp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDp(&low);
-				cpu_cmp(low, high);
+				auto addr = cpu_adrDp();
+				cpu_cmp(addr);
 				break;
 			}
 			case 0xc6: { // dec dp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDp(&low);
-				cpu_dec(low, high);
+				auto addr = cpu_adrDp();
+				cpu_dec(addr);
 				break;
 			}
 			case 0xc7: { // cmp idl
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIdl(&low);
-				cpu_cmp(low, high);
+				auto addr = cpu_adrIdl();
+				cpu_cmp(addr);
 				break;
 			}
 			case 0xc8: { // iny imp
@@ -2357,9 +2232,8 @@ namespace LakeSnes
 				break;
 			}
 			case 0xc9: { // cmp imm(m)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrImm(&low, false);
-				cpu_cmp(low, high);
+				auto addr = cpu_adrImm(false);
+				cpu_cmp(addr);
 				break;
 			}
 			case 0xca: { // dex imp
@@ -2379,27 +2253,23 @@ namespace LakeSnes
 				break;
 			}
 			case 0xcc: { // cpy abs
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbs(&low);
-				cpu_cpy(low, high);
+				auto addr = cpu_adrAbs();
+				cpu_cpy(addr);
 				break;
 			}
 			case 0xcd: { // cmp abs
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbs(&low);
-				cpu_cmp(low, high);
+					auto addr = cpu_adrAbs();
+				cpu_cmp(addr);
 				break;
 			}
 			case 0xce: { // dec abs
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbs(&low);
-				cpu_dec(low, high);
+					auto addr = cpu_adrAbs();
+				cpu_dec(addr);
 				break;
 			}
 			case 0xcf: { // cmp abl
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbl(&low);
-				cpu_cmp(low, high);
+				auto addr = cpu_adrAbl();
+				cpu_cmp(addr);
 				break;
 			}
 			case 0xd0: { // bne rel
@@ -2407,45 +2277,38 @@ namespace LakeSnes
 				break;
 			}
 			case 0xd1: { // cmp idy(r)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIdy(&low, false);
-				cpu_cmp(low, high);
+				auto addr = cpu_adrIdy(false);
+				cpu_cmp(addr);
 				break;
 			}
 			case 0xd2: { // cmp idp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIdp(&low);
-				cpu_cmp(low, high);
+				auto addr = cpu_adrIdp();
+				cpu_cmp(addr);
 				break;
 			}
 			case 0xd3: { // cmp isy
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIsy(&low);
-				cpu_cmp(low, high);
+				auto addr = cpu_adrIsy();
+				cpu_cmp(addr);
 				break;
 			}
 			case 0xd4: { // pei dp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDp(&low);
-				cpu_pushWord(cpu_readWord(low, high, false), true);
+				auto addr = cpu_adrDp();
+				cpu_pushWord(cpu_readWord(addr, false), true);
 				break;
 			}
 			case 0xd5: { // cmp dpx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDpx(&low);
-				cpu_cmp(low, high);
+				auto addr = cpu_adrDpx();
+				cpu_cmp(addr);
 				break;
 			}
 			case 0xd6: { // dec dpx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDpx(&low);
-				cpu_dec(low, high);
+				auto addr = cpu_adrDpx();
+				cpu_dec(addr);
 				break;
 			}
 			case 0xd7: { // cmp ily
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIly(&low);
-				cpu_cmp(low, high);
+				auto addr = cpu_adrIly();
+				cpu_cmp(addr);
 				break;
 			}
 			case 0xd8: { // cld imp
@@ -2454,9 +2317,8 @@ namespace LakeSnes
 				break;
 			}
 			case 0xd9: { // cmp aby(r)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAby(&low, false);
-				cpu_cmp(low, high);
+				auto addr = cpu_adrAby(false);
+				cpu_cmp(addr);
 				break;
 			}
 			case 0xda: { // phx imp
@@ -2483,33 +2345,28 @@ namespace LakeSnes
 				break;
 			}
 			case 0xdd: { // cmp abx(r)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbx(&low, false);
-				cpu_cmp(low, high);
+				auto addr = cpu_adrAbx(false);
+				cpu_cmp(addr);
 				break;
 			}
 			case 0xde: { // dec abx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbx(&low, true);
-				cpu_dec(low, high);
+				auto addr = cpu_adrAbx(true);
+				cpu_dec(addr);
 				break;
 			}
 			case 0xdf: { // cmp alx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAlx(&low);
-				cpu_cmp(low, high);
+				auto addr = cpu_adrAlx();
+				cpu_cmp(addr);
 				break;
 			}
 			case 0xe0: { // cpx imm(x)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrImm(&low, true);
-				cpu_cpx(low, high);
+				auto addr = cpu_adrImm(true);
+				cpu_cpx(addr);
 				break;
 			}
 			case 0xe1: { // sbc idx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIdx(&low);
-				cpu_sbc(low, high);
+				auto addr = cpu_adrIdx();
+				cpu_sbc(addr);
 				break;
 			}
 			case 0xe2: { // sep imm(s)
@@ -2520,33 +2377,28 @@ namespace LakeSnes
 				break;
 			}
 			case 0xe3: { // sbc sr
-				uint32_t low = 0;
-				uint32_t high = cpu_adrSr(&low);
-				cpu_sbc(low, high);
+				auto addr = cpu_adrSr();
+				cpu_sbc(addr);
 				break;
 			}
 			case 0xe4: { // cpx dp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDp(&low);
-				cpu_cpx(low, high);
+				auto addr = cpu_adrDp();
+				cpu_cpx(addr);
 				break;
 			}
 			case 0xe5: { // sbc dp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDp(&low);
-				cpu_sbc(low, high);
+				auto addr = cpu_adrDp();
+				cpu_sbc(addr);
 				break;
 			}
 			case 0xe6: { // inc dp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDp(&low);
-				cpu_inc(low, high);
+				auto addr = cpu_adrDp();
+				cpu_inc(addr);
 				break;
 			}
 			case 0xe7: { // sbc idl
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIdl(&low);
-				cpu_sbc(low, high);
+				auto addr = cpu_adrIdl();
+				cpu_sbc(addr);
 				break;
 			}
 			case 0xe8: { // inx imp
@@ -2560,9 +2412,8 @@ namespace LakeSnes
 				break;
 			}
 			case 0xe9: { // sbc imm(m)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrImm(&low, false);
-				cpu_sbc(low, high);
+				auto addr = cpu_adrImm(false);
+				cpu_sbc(addr);
 				break;
 			}
 			case 0xea: { // nop imp
@@ -2581,27 +2432,23 @@ namespace LakeSnes
 				break;
 			}
 			case 0xec: { // cpx abs
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbs(&low);
-				cpu_cpx(low, high);
+				auto addr = cpu_adrAbs();
+				cpu_cpx(addr);
 				break;
 			}
 			case 0xed: { // sbc abs
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbs(&low);
-				cpu_sbc(low, high);
+				auto addr = cpu_adrAbs();
+				cpu_sbc(addr);
 				break;
 			}
 			case 0xee: { // inc abs
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbs(&low);
-				cpu_inc(low, high);
+				auto addr = cpu_adrAbs();
+				cpu_inc(addr);
 				break;
 			}
 			case 0xef: { // sbc abl
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbl(&low);
-				cpu_sbc(low, high);
+				auto addr = cpu_adrAbl();
+				cpu_sbc(addr);
 				break;
 			}
 			case 0xf0: { // beq rel
@@ -2609,21 +2456,18 @@ namespace LakeSnes
 				break;
 			}
 			case 0xf1: { // sbc idy(r)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIdy(&low, false);
-				cpu_sbc(low, high);
+				auto addr = cpu_adrIdy(false);
+				cpu_sbc(addr);
 				break;
 			}
 			case 0xf2: { // sbc idp
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIdp(&low);
-				cpu_sbc(low, high);
+				auto addr = cpu_adrIdp();
+				cpu_sbc(addr);
 				break;
 			}
 			case 0xf3: { // sbc isy
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIsy(&low);
-				cpu_sbc(low, high);
+				auto addr = cpu_adrIsy();
+				cpu_sbc(addr);
 				break;
 			}
 			case 0xf4: { // pea imm(l)
@@ -2631,21 +2475,18 @@ namespace LakeSnes
 				break;
 			}
 			case 0xf5: { // sbc dpx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDpx(&low);
-				cpu_sbc(low, high);
+				auto addr = cpu_adrDpx();
+				cpu_sbc(addr);
 				break;
 			}
 			case 0xf6: { // inc dpx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrDpx(&low);
-				cpu_inc(low, high);
+				auto addr = cpu_adrDpx();
+				cpu_inc(addr);
 				break;
 			}
 			case 0xf7: { // sbc ily
-				uint32_t low = 0;
-				uint32_t high = cpu_adrIly(&low);
-				cpu_sbc(low, high);
+				auto addr = cpu_adrIly();
+				cpu_sbc(addr);
 				break;
 			}
 			case 0xf8: { // sed imp
@@ -2654,9 +2495,8 @@ namespace LakeSnes
 				break;
 			}
 			case 0xf9: { // sbc aby(r)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAby(&low, false);
-				cpu_sbc(low, high);
+				auto addr = cpu_adrAby(false);
+				cpu_sbc(addr);
 				break;
 			}
 			case 0xfa: { // plx imp
@@ -2689,21 +2529,18 @@ namespace LakeSnes
 				break;
 			}
 			case 0xfd: { // sbc abx(r)
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbx(&low, false);
-				cpu_sbc(low, high);
+				auto addr = cpu_adrAbx(false);
+				cpu_sbc(addr);
 				break;
 			}
 			case 0xfe: { // inc abx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAbx(&low, true);
-				cpu_inc(low, high);
+				auto addr = cpu_adrAbx(true);
+				cpu_inc(addr);
 				break;
 			}
 			case 0xff: { // sbc alx
-				uint32_t low = 0;
-				uint32_t high = cpu_adrAlx(&low);
-				cpu_sbc(low, high);
+				auto addr = cpu_adrAlx();
+				cpu_sbc(addr);
 				break;
 			}
 		}
