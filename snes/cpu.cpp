@@ -544,6 +544,9 @@ namespace LakeSnes
 	}
 
 	Cpu::Addr24 Cpu::cpu_adrImm(bool xFlag) {
+		uint32_t low = 0;
+		uint32_t high = _cpu_adrImm(&low,xFlag);
+		return LameAddr24(low,high);
 		if((xFlag && xf) || (!xFlag && mf)) {
 			return MakeAddr24(k,pc++);
 		} else {
@@ -554,12 +557,18 @@ namespace LakeSnes
 	}
 
 	Cpu::Addr24 Cpu::cpu_adrDp() {
+		uint32_t low = 0;
+		uint32_t high = _cpu_adrDp(&low);
+		return LameAddr24(low,high);
 		uint8_t adr = cpu_readOpcode();
 		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
 		return MakeAddr24(dp,adr);
 	}
 
 	Cpu::Addr24 Cpu::cpu_adrDpx() {
+		uint32_t low = 0;
+		uint32_t high = _cpu_adrDpx(&low);
+		return LameAddr24(low,high);
 		uint8_t adr = cpu_readOpcode();
 		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
 		cpu_idle();
@@ -567,6 +576,9 @@ namespace LakeSnes
 	}
 
 	Cpu::Addr24 Cpu::cpu_adrDpy() {
+		uint32_t low = 0;
+		uint32_t high = _cpu_adrDpy(&low);
+		return LameAddr24(low,high);
 		uint8_t adr = cpu_readOpcode();
 		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
 		cpu_idle();
@@ -574,6 +586,9 @@ namespace LakeSnes
 	}
 
 	Cpu::Addr24 Cpu::cpu_adrIdp() {
+		uint32_t low = 0;
+		uint32_t high = _cpu_adrIdp(&low);
+		return LameAddr24(low,high);
 		uint8_t adr = cpu_readOpcode();
 		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
 		uint16_t pointer = cpu_readWord((dp + adr) & 0xffff, (dp + adr + 1) & 0xffff, false);
@@ -581,6 +596,9 @@ namespace LakeSnes
 	}
 
 	Cpu::Addr24 Cpu::cpu_adrIdx() {
+		uint32_t low = 0;
+		uint32_t high = _cpu_adrIdx(&low);
+		return LameAddr24(low,high);
 		uint8_t adr = cpu_readOpcode();
 		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
 		cpu_idle();
@@ -589,6 +607,9 @@ namespace LakeSnes
 	}
 
 	Cpu::Addr24 Cpu::cpu_adrIdy(bool write) {
+		uint32_t low = 0;
+		uint32_t high = _cpu_adrIdy(&low,write);
+		return LameAddr24(low,high);
 		uint8_t adr = cpu_readOpcode();
 		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
 		uint16_t pointer = cpu_readWord((dp + adr) & 0xffff, (dp + adr + 1) & 0xffff, false);
@@ -598,6 +619,9 @@ namespace LakeSnes
 	}
 
 	Cpu::Addr24 Cpu::cpu_adrIdl() {
+		uint32_t low = 0;
+		uint32_t high = _cpu_adrIdl(&low);
+		return LameAddr24(low,high);
 		uint8_t adr = cpu_readOpcode();
 		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
 		uint32_t pointer = cpu_readWord((dp + adr) & 0xffff, (dp + adr + 1) & 0xffff, false);
@@ -606,6 +630,9 @@ namespace LakeSnes
 	}
 
 	Cpu::Addr24 Cpu::cpu_adrIly() {
+		uint32_t low = 0;
+		uint32_t high = _cpu_adrIly(&low);
+		return LameAddr24(low,high);
 		uint8_t adr = cpu_readOpcode();
 		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
 		uint32_t pointer = cpu_readWord((dp + adr) & 0xffff, (dp + adr + 1) & 0xffff, false);
@@ -614,12 +641,18 @@ namespace LakeSnes
 	}
 
 	Cpu::Addr24 Cpu::cpu_adrSr() {
+		uint32_t low = 0;
+		uint32_t high = _cpu_adrSr(&low);
+		return LameAddr24(low,high);
 		uint8_t adr = cpu_readOpcode();
 		cpu_idle();
 		return MakeAddr24(0,sp + adr); //note: DB is 0 for stack
 	}
 
 	Cpu::Addr24 Cpu::cpu_adrIsy() {
+		uint32_t low = 0;
+		uint32_t high = _cpu_adrIsy(&low);
+		return LameAddr24(low,high);
 		uint8_t adr = cpu_readOpcode();
 		cpu_idle();
 		uint16_t pointer = cpu_readWord((sp + adr) & 0xffff, (sp + adr + 1) & 0xffff, false);
@@ -629,11 +662,17 @@ namespace LakeSnes
 	}
 
 	Cpu::Addr24 Cpu::cpu_adrAbs() {
+		uint32_t low = 0;
+		uint32_t high = _cpu_adrAbs(&low);
+		return LameAddr24(low,high);
 		uint16_t adr = cpu_readOpcodeWord(false);
 		return MakeAddr24(db,adr);
 	}
 
 	Cpu::Addr24 Cpu::cpu_adrAbx(bool write) {
+		uint32_t low = 0;
+		uint32_t high = _cpu_adrAbx(&low,write);
+		return LameAddr24(low,high);
 		uint16_t adr = cpu_readOpcodeWord(false);
 		// writing opcode or x = 0 or page crossed: 1 extra cycle
 		if(write || !xf || ((adr >> 8) != ((adr + x) >> 8))) cpu_idle();
@@ -642,6 +681,9 @@ namespace LakeSnes
 	}
 
 	Cpu::Addr24 Cpu::cpu_adrAby(bool write) {
+		uint32_t low = 0;
+		uint32_t high = _cpu_adrAby(&low,write);
+		return LameAddr24(low,high);
 		uint16_t adr = cpu_readOpcodeWord(false);
 		// writing opcode or x = 0 or page crossed: 1 extra cycle
 		if(write || !xf || ((adr >> 8) != ((adr + y) >> 8))) cpu_idle();
@@ -650,17 +692,156 @@ namespace LakeSnes
 	}
 
 	Cpu::Addr24 Cpu::cpu_adrAbl() {
+		uint32_t low = 0;
+		uint32_t high = _cpu_adrAbl(&low);
+		return LameAddr24(low,high);
 		uint32_t adr = cpu_readOpcodeWord(false);
 		auto bank = cpu_readOpcode();
 		return MakeAddr24(bank,adr);
 	}
 
 	Cpu::Addr24 Cpu::cpu_adrAlx() {
+		uint32_t low = 0;
+		uint32_t high = _cpu_adrAlx(&low);
+		return LameAddr24(low,high);
 		uint32_t adr = cpu_readOpcodeWord(false);
 		auto bank = cpu_readOpcode();
 		adr += x;
 		return MakeAddr24(bank,adr);
 	}
+
+	// addressing modes
+
+	uint32_t Cpu::_cpu_adrImm(uint32_t* low, bool xFlag) {
+		if((xFlag && xf) || (!xFlag && mf)) {
+			*low = (k << 16) | pc++;
+			return 0;
+		} else {
+			*low = (k << 16) | pc++;
+			return (k << 16) | pc++;
+		}
+	}
+
+	uint32_t Cpu::_cpu_adrDp(uint32_t* low) {
+		uint8_t adr = cpu_readOpcode();
+		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
+		*low = (dp + adr) & 0xffff;
+		return (dp + adr + 1) & 0xffff;
+	}
+
+	uint32_t Cpu::_cpu_adrDpx(uint32_t* low) {
+		uint8_t adr = cpu_readOpcode();
+		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
+		cpu_idle();
+		*low = (dp + adr + x) & 0xffff;
+		return (dp + adr + x + 1) & 0xffff;
+	}
+
+	uint32_t Cpu::_cpu_adrDpy(uint32_t* low) {
+		uint8_t adr = cpu_readOpcode();
+		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
+		cpu_idle();
+		*low = (dp + adr + y) & 0xffff;
+		return (dp + adr + y + 1) & 0xffff;
+	}
+
+	uint32_t Cpu::_cpu_adrIdp(uint32_t* low) {
+		uint8_t adr = cpu_readOpcode();
+		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
+		uint16_t pointer = cpu_readWord((dp + adr) & 0xffff, (dp + adr + 1) & 0xffff, false);
+		*low = (db << 16) + pointer;
+		return ((db << 16) + pointer + 1) & 0xffffff;
+	}
+
+	uint32_t Cpu::_cpu_adrIdx(uint32_t* low) {
+		uint8_t adr = cpu_readOpcode();
+		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
+		cpu_idle();
+		uint16_t pointer = cpu_readWord((dp + adr + x) & 0xffff, (dp + adr + x + 1) & 0xffff, false);
+		*low = (db << 16) + pointer;
+		return ((db << 16) + pointer + 1) & 0xffffff;
+	}
+
+	uint32_t Cpu::_cpu_adrIdy(uint32_t* low, bool write) {
+		uint8_t adr = cpu_readOpcode();
+		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
+		uint16_t pointer = cpu_readWord((dp + adr) & 0xffff, (dp + adr + 1) & 0xffff, false);
+		// writing opcode or x = 0 or page crossed: 1 extra cycle
+		if(write || !xf || ((pointer >> 8) != ((pointer + y) >> 8))) cpu_idle();
+		*low = ((db << 16) + pointer + y) & 0xffffff;
+		return ((db << 16) + pointer + y + 1) & 0xffffff;
+	}
+
+	uint32_t Cpu::_cpu_adrIdl(uint32_t* low) {
+		uint8_t adr = cpu_readOpcode();
+		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
+		uint32_t pointer = cpu_readWord((dp + adr) & 0xffff, (dp + adr + 1) & 0xffff, false);
+		pointer |= cpu_read((dp + adr + 2) & 0xffff) << 16;
+		*low = pointer;
+		return (pointer + 1) & 0xffffff;
+	}
+
+	uint32_t Cpu::_cpu_adrIly(uint32_t* low) {
+		uint8_t adr = cpu_readOpcode();
+		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
+		uint32_t pointer = cpu_readWord((dp + adr) & 0xffff, (dp + adr + 1) & 0xffff, false);
+		pointer |= cpu_read((dp + adr + 2) & 0xffff) << 16;
+		*low = (pointer + y) & 0xffffff;
+		return (pointer + y + 1) & 0xffffff;
+	}
+
+	uint32_t Cpu::_cpu_adrSr(uint32_t* low) {
+		uint8_t adr = cpu_readOpcode();
+		cpu_idle();
+		*low = (sp + adr) & 0xffff;
+		return (sp + adr + 1) & 0xffff;
+	}
+
+	uint32_t Cpu::_cpu_adrIsy(uint32_t* low) {
+		uint8_t adr = cpu_readOpcode();
+		cpu_idle();
+		uint16_t pointer = cpu_readWord((sp + adr) & 0xffff, (sp + adr + 1) & 0xffff, false);
+		cpu_idle();
+		*low = ((db << 16) + pointer + y) & 0xffffff;
+		return ((db << 16) + pointer + y + 1) & 0xffffff;
+	}
+
+	uint32_t Cpu::_cpu_adrAbs(uint32_t* low) {
+		uint16_t adr = cpu_readOpcodeWord(false);
+		*low = (db << 16) + adr;
+		return ((db << 16) + adr + 1) & 0xffffff;
+	}
+
+	uint32_t Cpu::_cpu_adrAbx(uint32_t* low, bool write) {
+		uint16_t adr = cpu_readOpcodeWord(false);
+		// writing opcode or x = 0 or page crossed: 1 extra cycle
+		if(write || !xf || ((adr >> 8) != ((adr + x) >> 8))) cpu_idle();
+		*low = ((db << 16) + adr + x) & 0xffffff;
+		return ((db << 16) + adr + x + 1) & 0xffffff;
+	}
+
+	uint32_t Cpu::_cpu_adrAby(uint32_t* low, bool write) {
+		uint16_t adr = cpu_readOpcodeWord(false);
+		// writing opcode or x = 0 or page crossed: 1 extra cycle
+		if(write || !xf || ((adr >> 8) != ((adr + y) >> 8))) cpu_idle();
+		*low = ((db << 16) + adr + y) & 0xffffff;
+		return ((db << 16) + adr + y + 1) & 0xffffff;
+	}
+
+	uint32_t Cpu::_cpu_adrAbl(uint32_t* low) {
+		uint32_t adr = cpu_readOpcodeWord(false);
+		adr |= cpu_readOpcode() << 16;
+		*low = adr;
+		return (adr + 1) & 0xffffff;
+	}
+
+	uint32_t Cpu::_cpu_adrAlx(uint32_t* low) {
+		uint32_t adr = cpu_readOpcodeWord(false);
+		adr |= cpu_readOpcode() << 16;
+		*low = (adr + x) & 0xffffff;
+		return (adr + x + 1) & 0xffffff;
+	}
+
 
 	// opcode functions
 
