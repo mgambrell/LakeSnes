@@ -35,8 +35,8 @@ namespace LakeSnes
 	void apu_reset();
 	void apu_handleState(StateHandler* sh);
 	void apu_runCycles();
-	uint8_t apu_spcRead(void* mem, uint16_t adr);
-	void apu_spcWrite(void* mem, uint16_t adr, uint8_t val);
-	void apu_spcIdle(void* mem, bool waiting);
+	uint8_t apu_spcRead(uint16_t adr);
+	void apu_spcWrite(uint16_t adr, uint8_t val);
+	void apu_spcIdle(bool waiting);
 
 }

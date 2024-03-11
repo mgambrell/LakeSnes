@@ -49,7 +49,7 @@ namespace LakeSnes
 	}
 
 	void apu_init() {
-		spc_init(apu_spcRead, apu_spcWrite, apu_spcIdle);
+		spc_init();
 		dsp_init();
 	}
 
@@ -193,17 +193,17 @@ namespace LakeSnes
 		apu->ram[adr] = val;
 	}
 
-	uint8_t apu_spcRead(void* mem, uint16_t adr) {
+	uint8_t apu_spcRead(uint16_t adr) {
 		apu_cycle();
 		return apu_read(adr);
 	}
 
-	void apu_spcWrite(void* mem, uint16_t adr, uint8_t val) {
+	void apu_spcWrite(uint16_t adr, uint8_t val) {
 		apu_cycle();
 		apu_write(adr, val);
 	}
 
-	void apu_spcIdle(void* mem, bool waiting) {
+	void apu_spcIdle(bool waiting) {
 		apu_cycle();
 	}
 

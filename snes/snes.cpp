@@ -33,7 +33,7 @@ namespace LakeSnes
 	static uint8_t *access_time;
 
 	Snes* snes_init() {
-		cpu_init(&snes_cpuRead, &snes_cpuWrite, &snes_cpuIdle);
+		cpu_init();
 		dma_init();
 		apu_init();
 		ppu_init();

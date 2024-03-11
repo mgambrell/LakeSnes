@@ -31,10 +31,7 @@ namespace LakeSnes
 	// addressing modes and opcode functions not declared, only used after defintions
 
 
-	void spc_init(SpcReadHandler read, SpcWriteHandler write, SpcIdleHandler idle) {
-		spc->read = read;
-		spc->write = write;
-		spc->idle = idle;
+	void spc_init() {
 	}
 
 	void spc_free() {
@@ -105,19 +102,19 @@ namespace LakeSnes
 	}
 
 	static uint8_t spc_read(uint16_t adr) {
-		return spc->read(spc->mem, adr);
+		return apu_spcRead(adr);
 	}
 
 	static void spc_write(uint16_t adr, uint8_t val) {
-		spc->write(spc->mem, adr, val);
+		apu_spcWrite(adr, val);
 	}
 
 	static void spc_idle() {
-		spc->idle(spc->mem, false);
+		apu_spcIdle(false);
 	}
 
 	static void spc_idleWait() {
-		spc->idle(spc->mem, true);
+		apu_spcIdle(true);
 	}
 
 	static uint8_t spc_readOpcode() {

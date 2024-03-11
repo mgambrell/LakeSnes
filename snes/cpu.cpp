@@ -31,11 +31,7 @@ namespace LakeSnes
 
 	// addressing modes and opcode functions not declared, only used after defintions
 
-	Cpu* cpu_init(CpuReadHandler read, CpuWriteHandler write, CpuIdleHandler idle) {
-		cpu->read = read;
-		cpu->write = write;
-		cpu->idle = idle;
-		return cpu;
+	void cpu_init() {
 	}
 
 	void cpu_reset(bool hard) {
@@ -130,22 +126,22 @@ namespace LakeSnes
 
 	static uint8_t cpu_read(uint32_t adr) {
 		cpu->intDelay = false;
-		return cpu->read(adr);
+		return snes_cpuRead(adr);
 	}
 
 	static void cpu_write(uint32_t adr, uint8_t val) {
 		cpu->intDelay = false;
-		cpu->write(adr, val);
+		snes_cpuWrite(adr, val);
 	}
 
 	static void cpu_idle() {
 		cpu->intDelay = false;
-		cpu->idle(false);
+		snes_cpuIdle(false);
 	}
 
 	static void cpu_idleWait() {
 		cpu->intDelay = false;
-		cpu->idle(true);
+		snes_cpuIdle(true);
 	}
 
 	static void cpu_checkInt() {

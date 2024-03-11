@@ -6,16 +6,8 @@ namespace LakeSnes
 {
 	struct StateHandler;
 
-	typedef uint8_t (*SpcReadHandler)(void* mem, uint16_t adr);
-	typedef void (*SpcWriteHandler)(void* mem, uint16_t adr, uint8_t val);
-	typedef void (*SpcIdleHandler)(void* mem, bool waiting);
-
-	struct Spc {
-		// reference to memory handler, pointers to read/write/idle handlers
-		void* mem;
-		SpcReadHandler read;
-		SpcWriteHandler write;
-		SpcIdleHandler idle;
+	struct Spc
+	{
 		// registers
 		uint8_t a;
 		uint8_t x;
@@ -46,7 +38,7 @@ namespace LakeSnes
 		uint8_t param;
 	};
 
-	void spc_init(SpcReadHandler read, SpcWriteHandler write, SpcIdleHandler idle);
+	void spc_init();
 	void spc_free();
 	void spc_reset(bool hard);
 	void spc_handleState(StateHandler* sh);
