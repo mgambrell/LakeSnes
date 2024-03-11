@@ -46,11 +46,11 @@ namespace LakeSnes
 		uint8_t param;
 	};
 
-	Spc* spc_init(void* mem, SpcReadHandler read, SpcWriteHandler write, SpcIdleHandler idle);
-	void spc_free(Spc* spc);
-	void spc_reset(Spc* spc, bool hard);
-	void spc_handleState(Spc* spc, StateHandler* sh);
-	void spc_runOpcode(Spc* spc);
+	void spc_init(SpcReadHandler read, SpcWriteHandler write, SpcIdleHandler idle);
+	void spc_free();
+	void spc_reset(bool hard);
+	void spc_handleState(StateHandler* sh);
+	void spc_runOpcode();
 
 
 }

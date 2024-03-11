@@ -156,7 +156,7 @@ namespace LakeSnes
 	void snes_setSamples(int16_t* sampleData, int samplesPerFrame) {
 		// size is 2 (int16) * 2 (stereo) * samplesPerFrame
 		// sets samples in the sampleData
-		dsp_getSamples(snes->myapu.dsp, sampleData, samplesPerFrame);
+		dsp_getSamples(sampleData, samplesPerFrame);
 	}
 
 	int snes_saveBattery(uint8_t* data) {

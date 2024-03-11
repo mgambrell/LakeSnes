@@ -43,7 +43,6 @@ namespace LakeSnes
 	};
 
 	struct Dsp {
-		Apu* apu;
 		// mirror ram
 		uint8_t ram[0x80];
 		// 8 channels
@@ -83,15 +82,15 @@ namespace LakeSnes
 		uint32_t lastFrameBoundary;
 	};
 
-	Dsp* dsp_init(Apu* apu);
-	void dsp_free(Dsp* dsp);
-	void dsp_reset(Dsp* dsp);
-	void dsp_handleState(Dsp* dsp, StateHandler* sh);
-	void dsp_cycle(Dsp* dsp);
-	uint8_t dsp_read(Dsp* dsp, uint8_t adr);
-	void dsp_write(Dsp* dsp, uint8_t adr, uint8_t val);
-	void dsp_getSamples(Dsp* dsp, int16_t* sampleData, int samplesPerFrame);
-	void dsp_newFrame(Dsp* dsp);
+	void dsp_init();
+	void dsp_free();
+	void dsp_reset();
+	void dsp_handleState(StateHandler* sh);
+	void dsp_cycle();
+	uint8_t dsp_read(uint8_t adr);
+	void dsp_write(uint8_t adr, uint8_t val);
+	void dsp_getSamples(int16_t* sampleData, int samplesPerFrame);
+	void dsp_newFrame();
 
 
 }

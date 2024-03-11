@@ -226,7 +226,7 @@ namespace LakeSnes
 						snes_catchupApu();
 						// notify dsp of frame-end, because sometimes dma will extend much further past vblank (or even into the next frame)
 						// Megaman X2 (titlescreen animation), Tales of Phantasia (game demo), Actraiser 2 (fade-in @ bootup)
-				dsp_newFrame(snes->myapu.dsp);
+				dsp_newFrame();
 						// we are starting vblank
 						ppu_handleVblank(snes->ppu);
 						snes->inVblank = true;
@@ -579,7 +579,7 @@ namespace LakeSnes
 
 	void snes_runSpcCycle() {
 		// TODO: apu catchup is not aware of this, SPC runs extra cycle(s)
-		spc_runOpcode(snes->myapu.spc);
+		spc_runOpcode();
 	}
 
  }

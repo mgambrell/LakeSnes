@@ -1,12 +1,14 @@
+#include "dsp.h"
+#include "apu.h"
+#include "snes.h"
+#include "statehandler.h"
+#include "global.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
 
-#include "dsp.h"
-#include "apu.h"
-#include "snes.h"
-#include "statehandler.h"
 
 namespace LakeSnes
 {
@@ -60,25 +62,21 @@ namespace LakeSnes
 
 	static int clamp16(int val);
 	static int clip16(int val);
-	static bool dsp_checkCounter(Dsp* dsp, int rate);
-	static void dsp_cycleChannel(Dsp* dsp, int ch);
-	static void dsp_handleEcho(Dsp* dsp);
-	static void dsp_handleGain(Dsp* dsp, int ch);
-	static void dsp_decodeBrr(Dsp* dsp, int ch);
-	static int16_t dsp_getSample(Dsp* dsp, int ch);
-	static void dsp_handleNoise(Dsp* dsp);
+	static bool dsp_checkCounter(int rate);
+	static void dsp_cycleChannel(int ch);
+	static void dsp_handleEcho();
+	static void dsp_handleGain(int ch);
+	static void dsp_decodeBrr(int ch);
+	static int16_t dsp_getSample(int ch);
+	static void dsp_handleNoise();
 
-	Dsp* dsp_init(Apu* apu) {
-		Dsp* dsp = (Dsp*)malloc(sizeof(Dsp));
-		dsp->apu = apu;
-		return dsp;
+	void dsp_init() {
 	}
 
-	void dsp_free(Dsp* dsp) {
-		free(dsp);
+	void dsp_free() {
 	}
 
-	void dsp_reset(Dsp* dsp) {
+	void dsp_reset() {
 		memset(dsp->ram, 0, sizeof(dsp->ram));
 		dsp->ram[0x7c] = 0xff; // set ENDx
 		for(int i = 0; i < 8; i++) {
@@ -140,11 +138,11 @@ namespace LakeSnes
 		dsp->lastFrameBoundary = 0;
 	}
 
-	void dsp_newFrame(Dsp* dsp) {
+	void dsp_newFrame() {
 		dsp->lastFrameBoundary = dsp->sampleOffset;
 	}
 
-	void dsp_handleState(Dsp* dsp, StateHandler* sh) {
+	void dsp_handleState(StateHandler* sh) {
 		sh_handleBools(sh, &dsp->evenCycle, &dsp->mute, &dsp->reset, &dsp->echoWrites, NULL);
 		sh_handleBytes(sh, &dsp->noiseRate, &dsp->firBufferIndex, NULL);
 		sh_handleBytesS(sh,
@@ -189,17 +187,17 @@ namespace LakeSnes
 		sh_handleByteArray(sh, dsp->ram, 0x80);
 	}
 
-	void dsp_cycle(Dsp* dsp) {
+	void dsp_cycle() {
 		dsp->sampleOutL = 0;
 		dsp->sampleOutR = 0;
 		dsp->echoOutL = 0;
 		dsp->echoOutR = 0;
 		for(int i = 0; i < 8; i++) {
-			dsp_cycleChannel(dsp, i);
+			dsp_cycleChannel(i);
 		}
-		dsp_handleEcho(dsp); // also applies master volume
+		dsp_handleEcho(); // also applies master volume
 		dsp->counter = dsp->counter == 0 ? 30720 : dsp->counter - 1;
-		dsp_handleNoise(dsp);
+		dsp_handleNoise();
 		dsp->evenCycle = !dsp->evenCycle;
 		// handle mute flag
 		if(dsp->mute) {
@@ -219,20 +217,20 @@ namespace LakeSnes
 		return (int16_t) (val & 0xffff);
 	}
 
-	static bool dsp_checkCounter(Dsp* dsp, int rate) {
+	static bool dsp_checkCounter(int rate) {
 		if(rate == 0) return false;
 		return ((dsp->counter + rateOffsets[rate]) % rateValues[rate]) == 0;
 	}
 
-	static void dsp_handleEcho(Dsp* dsp) {
+	static void dsp_handleEcho() {
 		// increment fir buffer index
 		dsp->firBufferIndex++;
 		dsp->firBufferIndex &= 0x7;
 		// get value out of ram
 		uint16_t adr = dsp->echoBufferAdr + dsp->echoBufferIndex;
-		int16_t ramSample = dsp->apu->ram[adr] | (dsp->apu->ram[(adr + 1) & 0xffff] << 8);
+		int16_t ramSample = apu->ram[adr] | (apu->ram[(adr + 1) & 0xffff] << 8);
 		dsp->firBufferL[dsp->firBufferIndex] = ramSample >> 1;
-		ramSample = dsp->apu->ram[(adr + 2) & 0xffff] | (dsp->apu->ram[(adr + 3) & 0xffff] << 8);
+		ramSample = apu->ram[(adr + 2) & 0xffff] | (apu->ram[(adr + 3) & 0xffff] << 8);
 		dsp->firBufferR[dsp->firBufferIndex] = ramSample >> 1;
 		// calculate FIR-sum
 		int sumL = 0, sumR = 0;
@@ -255,10 +253,10 @@ namespace LakeSnes
 		int echoR = clamp16(dsp->echoOutR + clip16((sumR * dsp->feedbackVolume) >> 7)) & ~1;
 		// write it to ram
 		if(dsp->echoWrites) {
-			dsp->apu->ram[adr] = echoL & 0xff;
-			dsp->apu->ram[(adr + 1) & 0xffff] = echoL >> 8;
-			dsp->apu->ram[(adr + 2) & 0xffff] = echoR & 0xff;
-			dsp->apu->ram[(adr + 3) & 0xffff] = echoR >> 8;
+			apu->ram[adr] = echoL & 0xff;
+			apu->ram[(adr + 1) & 0xffff] = echoL >> 8;
+			apu->ram[(adr + 2) & 0xffff] = echoR & 0xff;
+			apu->ram[(adr + 3) & 0xffff] = echoR >> 8;
 		}
 		// handle indexes
 		if(dsp->echoBufferIndex == 0) {
@@ -270,17 +268,17 @@ namespace LakeSnes
 		}
 	}
 
-	static void dsp_cycleChannel(Dsp* dsp, int ch) {
+	static void dsp_cycleChannel(int ch) {
 		// handle pitch counter
 		int pitch = dsp->channel[ch].pitch;
 		if(ch > 0 && dsp->channel[ch].pitchModulation) {
 			pitch += ((dsp->channel[ch - 1].sampleOut >> 5) * pitch) >> 10;
 		}
 		// get current brr header and get sample address
-		dsp->channel[ch].brrHeader = dsp->apu->ram[dsp->channel[ch].decodeOffset];
+		dsp->channel[ch].brrHeader = apu->ram[dsp->channel[ch].decodeOffset];
 		uint16_t samplePointer = dsp->dirPage + 4 * dsp->channel[ch].srcn;
 		if(dsp->channel[ch].startDelay == 0) samplePointer += 2;
-		uint16_t sampleAdr = dsp->apu->ram[samplePointer] | (dsp->apu->ram[(samplePointer + 1) & 0xffff] << 8);
+		uint16_t sampleAdr = apu->ram[samplePointer] | (apu->ram[(samplePointer + 1) & 0xffff] << 8);
 		// handle starting of sample
 		if(dsp->channel[ch].startDelay > 0) {
 			if(dsp->channel[ch].startDelay == 5) {
@@ -304,7 +302,7 @@ namespace LakeSnes
 		if(dsp->channel[ch].useNoise) {
 			sample = clip16(dsp->noiseSample * 2);
 		} else {
-			sample = dsp_getSample(dsp, ch);
+			sample = dsp_getSample(ch);
 		}
 		sample = ((sample * dsp->channel[ch].gain) >> 11) & ~1;
 		// handle reset and release
@@ -325,11 +323,11 @@ namespace LakeSnes
 		}
 		// handle envelope
 		if(dsp->channel[ch].startDelay == 0) {
-			dsp_handleGain(dsp, ch);
+			dsp_handleGain(ch);
 		}
 		// decode new brr samples if needed and update offsets
 		if(dsp->channel[ch].pitchCounter >= 0x4000) {
-			dsp_decodeBrr(dsp, ch);
+			dsp_decodeBrr(ch);
 			if(dsp->channel[ch].blockOffset >= 7) {
 				if(dsp->channel[ch].brrHeader & 0x1) {
 					dsp->channel[ch].decodeOffset = sampleAdr;
@@ -358,7 +356,7 @@ namespace LakeSnes
 		}
 	}
 
-	static void dsp_handleGain(Dsp* dsp, int ch) {
+	static void dsp_handleGain(int ch) {
 		int newGain = dsp->channel[ch].gain;
 		int rate = 0;
 		// handle gain mode
@@ -403,10 +401,10 @@ namespace LakeSnes
 			}
 		}
 		// store new value
-		if(dsp_checkCounter(dsp, rate)) dsp->channel[ch].gain = newGain;
+		if(dsp_checkCounter(rate)) dsp->channel[ch].gain = newGain;
 	}
 
-	static int16_t dsp_getSample(Dsp* dsp, int ch) {
+	static int16_t dsp_getSample(int ch) {
 		int pos = (dsp->channel[ch].pitchCounter >> 12) + dsp->channel[ch].bufferOffset;
 		int offset = (dsp->channel[ch].pitchCounter >> 4) & 0xff;
 		int16_t news = dsp->channel[ch].decodeBuffer[(pos + 3) % 12];
@@ -420,7 +418,7 @@ namespace LakeSnes
 		return clamp16(out) & ~1;
 	}
 
-	static void dsp_decodeBrr(Dsp* dsp, int ch) {
+	static void dsp_decodeBrr(int ch) {
 		int shift = dsp->channel[ch].brrHeader >> 4;
 		int filter = (dsp->channel[ch].brrHeader & 0xc) >> 2;
 		int bOff = dsp->channel[ch].bufferOffset;
@@ -432,7 +430,7 @@ namespace LakeSnes
 			if(i & 1) {
 				s = curByte & 0xf;
 			} else {
-				curByte = dsp->apu->ram[(dsp->channel[ch].decodeOffset + dsp->channel[ch].blockOffset + (i >> 1)) & 0xffff];
+				curByte = apu->ram[(dsp->channel[ch].decodeOffset + dsp->channel[ch].blockOffset + (i >> 1)) & 0xffff];
 				s = curByte >> 4;
 			}
 			if(s > 7) s -= 16;
@@ -454,18 +452,18 @@ namespace LakeSnes
 		if(dsp->channel[ch].bufferOffset >= 12) dsp->channel[ch].bufferOffset = 0;
 	}
 
-	static void dsp_handleNoise(Dsp* dsp) {
-		if(dsp_checkCounter(dsp, dsp->noiseRate)) {
+	static void dsp_handleNoise() {
+		if(dsp_checkCounter(dsp->noiseRate)) {
 			int bit = (dsp->noiseSample & 1) ^ ((dsp->noiseSample >> 1) & 1);
 			dsp->noiseSample = ((dsp->noiseSample >> 1) & 0x3fff) | (bit << 14);
 		}
 	}
 
-	uint8_t dsp_read(Dsp* dsp, uint8_t adr) {
+	uint8_t dsp_read(uint8_t adr) {
 		return dsp->ram[adr];
 	}
 
-	void dsp_write(Dsp* dsp, uint8_t adr, uint8_t val) {
+	void dsp_write(uint8_t adr, uint8_t val) {
 		int ch = adr >> 4;
 		switch(adr) {
 			case 0x00: case 0x10: case 0x20: case 0x30: case 0x40: case 0x50: case 0x60: case 0x70: {
@@ -588,9 +586,9 @@ namespace LakeSnes
 		dsp->ram[adr] = val;
 	}
 
-	void dsp_getSamples(Dsp* dsp, int16_t* sampleData, int samplesPerFrame) {
+	void dsp_getSamples(int16_t* sampleData, int samplesPerFrame) {
 		// resample from 534 / 641 samples per frame to wanted value
-		float wantedSamples = (dsp->apu->snes->palTiming ? 641.0 : 534.0);
+		float wantedSamples = (snes->palTiming ? 641.0 : 534.0);
 		double adder = wantedSamples / samplesPerFrame;
 		double location = dsp->lastFrameBoundary - wantedSamples;
 		for(int i = 0; i < samplesPerFrame; i++) {

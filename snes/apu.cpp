@@ -26,7 +26,7 @@ namespace LakeSnes
 	static void apu_cycle() {
 		if((apu->cycles & 0x1f) == 0) {
 			// every 32 cycles
-			dsp_cycle(apu->dsp);
+			dsp_cycle();
 		}
 
 		// handle timers
@@ -49,19 +49,19 @@ namespace LakeSnes
 	}
 
 	void apu_init() {
-		apu->spc = spc_init(apu, apu_spcRead, apu_spcWrite, apu_spcIdle);
-		apu->dsp = dsp_init(apu);
+		spc_init(apu_spcRead, apu_spcWrite, apu_spcIdle);
+		dsp_init();
 	}
 
 	void apu_free() {
-		spc_free(apu->spc);
-		dsp_free(apu->dsp);
+		spc_free();
+		dsp_free();
 	}
 
 	void apu_reset() {
 		// TODO: hard reset for apu
-		spc_reset(apu->spc, true);
-		dsp_reset(apu->dsp);
+		spc_reset(true);
+		dsp_reset();
 		memset(apu->ram, 0, sizeof(apu->ram));
 		apu->dspAdr = 0;
 		apu->romReadable = true;
@@ -90,15 +90,15 @@ namespace LakeSnes
 		}
 		sh_handleByteArray(sh, apu->ram, 0x10000);
 		// components
-		spc_handleState(apu->spc, sh);
-		dsp_handleState(apu->dsp, sh);
+		spc_handleState(sh);
+		dsp_handleState( sh);
 	}
 
 	void apu_runCycles() {
 		uint64_t sync_to = (uint64_t)snes->cycles * (snes->palTiming ? apuCyclesPerMasterPal : apuCyclesPerMaster);
 
 		while (apu->cycles < sync_to) {
-			spc_runOpcode(apu->spc);
+			spc_runOpcode();
 		}
 	}
 
@@ -115,7 +115,7 @@ namespace LakeSnes
 				return apu->dspAdr;
 			}
 			case 0xf3: {
-				return dsp_read(apu->dsp, apu->dspAdr & 0x7f);
+				return dsp_read(apu->dspAdr & 0x7f);
 			}
 			case 0xf4:
 			case 0xf5:
@@ -168,7 +168,7 @@ namespace LakeSnes
 				break;
 			}
 			case 0xf3: {
-				if(apu->dspAdr < 0x80) dsp_write(apu->dsp, apu->dspAdr, val);
+				if(apu->dspAdr < 0x80) dsp_write(apu->dspAdr, val);
 				break;
 			}
 			case 0xf4:

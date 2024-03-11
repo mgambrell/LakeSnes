@@ -2,6 +2,9 @@
 
 #include <stdint.h>
 
+#include "spc.h"
+#include "dsp.h"
+
 namespace LakeSnes
 {
 	struct Apu;
@@ -19,9 +22,8 @@ namespace LakeSnes
 	};
 
 	struct Apu {
-		Snes* snes;
-		Spc* spc;
-		Dsp* dsp;
+		Spc myspc;
+		Dsp mydsp;
 		uint8_t ram[0x10000];
 		bool romReadable;
 		uint8_t dspAdr;
