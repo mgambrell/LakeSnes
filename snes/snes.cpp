@@ -37,7 +37,7 @@ namespace LakeSnes
 		dma_init();
 		apu_init();
 		ppu_init();
-		snes->cart = cart_init(snes);
+		cart_init();
 		snes->input1 = input_init(snes);
 		snes->input2 = input_init(snes);
 		snes->palTiming = false;
@@ -47,7 +47,7 @@ namespace LakeSnes
 
 	void snes_free() {
 		ppu_free();
-		cart_free(snes->cart);
+		cart_free();
 		input_free(snes->input1);
 		input_free(snes->input2);
 		free_accesstime();
@@ -60,7 +60,7 @@ namespace LakeSnes
 		ppu_reset();
 		input_reset(snes->input1);
 		input_reset(snes->input2);
-		cart_reset(snes->cart);
+		cart_reset();
 		if(hard) memset(snes->ram, 0, sizeof(snes->ram));
 		snes->ramAdr = 0;
 		snes->hPos = 0;
@@ -111,7 +111,7 @@ namespace LakeSnes
 		apu_handleState(sh);
 		input_handleState(snes->input1, sh);
 		input_handleState(snes->input2, sh);
-		cart_handleState(snes->cart, sh);
+		cart_handleState(sh);
 	}
 
 	void snes_runFrame() {
@@ -194,14 +194,14 @@ namespace LakeSnes
 					if(!snes->palTiming) {
 						// even interlace frame is 263 lines
 						if((snes->vPos == 262 && (!ppu->frameInterlace || !ppu->evenFrame)) || snes->vPos == 263) {
-							if (snes->cart->type == 4) cx4_run();
+							if (cart->type == 4) cx4_run();
 							snes->vPos = 0;
 							snes->frames++;
 						}
 				} else {
 						// even interlace frame is 313 lines
 						if((snes->vPos == 312 && (!ppu->frameInterlace || !ppu->evenFrame)) || snes->vPos == 313) {
-							if (snes->cart->type == 4) cx4_run();
+							if (cart->type == 4) cx4_run();
 							snes->vPos = 0;
 							snes->frames++;
 						}
@@ -485,7 +485,7 @@ namespace LakeSnes
 			}
 		}
 		// read from cart
-		return cart_read(snes->cart, bank, adr);
+		return cart_read(bank, adr);
 	}
 
 	void snes_write(uint32_t adr, uint8_t val) {
@@ -514,7 +514,7 @@ namespace LakeSnes
 			}
 		}
 		// write to cart
-		cart_write(snes->cart, bank, adr, val);
+		cart_write(bank, adr, val);
 	}
 
 	static int snes_getAccessTime(uint32_t adr) {

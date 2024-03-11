@@ -6,6 +6,7 @@
 #include "dma.h"
 #include "apu.h"
 #include "ppu.h"
+#include "cart.h"
 
 namespace LakeSnes
 {
@@ -23,7 +24,7 @@ namespace LakeSnes
     Apu myapu;
     Ppu myppu;
     Dma mydma;
-    Cart* cart;
+    Cart mycart;
     bool palTiming;
     // input
     Input* input1;

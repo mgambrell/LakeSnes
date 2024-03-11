@@ -122,7 +122,7 @@ namespace LakeSnes
 			bankSize == 0x8000 ? "32K" : "64K", newLength / bankSize, headers[used].chips > 0 ? headers[used].ramSize : 0, headers[used].exCoprocessor
 		);
 		cart_load(
-			snes->cart, headers[used].cartType,
+			headers[used].cartType,
 			newData, newLength, headers[used].chips > 0 ? headers[used].ramSize : 0
 		);
 		snes_reset(true); // reset after loading
@@ -161,12 +161,12 @@ namespace LakeSnes
 
 	int snes_saveBattery(uint8_t* data) {
 		int size = 0;
-		cart_handleBattery(snes->cart, true, data, &size);
+		cart_handleBattery(true, data, &size);
 		return size;
 	}
 
 	bool snes_loadBattery(uint8_t* data, int size) {
-		return cart_handleBattery(snes->cart, false, data, &size);
+		return cart_handleBattery(false, data, &size);
 	}
 
 	int snes_saveState(uint8_t* data) {
@@ -174,7 +174,7 @@ namespace LakeSnes
 		uint32_t id = 0x4653534c; // 'LSSF' LakeSnes State File
 		uint32_t version = stateVersion;
 		sh_handleInts(sh, &id, &version, &version, NULL); // second version to be overridden by length
-		cart_handleTypeState(snes->cart, sh);
+		cart_handleTypeState(sh);
 		// save data
 		snes_handleState(sh);
 		// store
@@ -189,7 +189,7 @@ namespace LakeSnes
 		StateHandler* sh = sh_init(false, data, size);
 		uint32_t id = 0, version = 0, length = 0;
 		sh_handleInts(sh, &id, &version, &length, NULL);
-		bool cartMatch = cart_handleTypeState(snes->cart, sh);
+		bool cartMatch = cart_handleTypeState(sh);
 		if(id != 0x4653534c || version != stateVersion || length != size || !cartMatch) {
 			sh_free(sh);
 			return false;
