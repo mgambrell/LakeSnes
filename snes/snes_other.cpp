@@ -135,11 +135,11 @@ namespace LakeSnes
 			if(pressed) {
 				myinput[0].currentState |= 1 << button;
 			} else {
-				myinput[1].currentState &= ~(1 << button);
+				myinput[0].currentState &= ~(1 << button);
 			}
 		} else {
 			if(pressed) {
-				myinput[0].currentState |= 1 << button;
+				myinput[1].currentState |= 1 << button;
 			} else {
 				myinput[1].currentState &= ~(1 << button);
 			}
