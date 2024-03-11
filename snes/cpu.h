@@ -18,9 +18,10 @@ namespace LakeSnes
 		void cpu_nmi();
 		void cpu_setIrq(bool state);
 
+		uint8_t cpu_read(uint32_t adr);
+
 	private:
 
-		uint8_t cpu_read(uint32_t adr);
 		void cpu_write(uint32_t adr, uint8_t val);
 		void cpu_idle();
 		void cpu_idleWait();
