@@ -138,22 +138,22 @@ namespace LakeSnes
 
 	static uint8_t cpu_read(Cpu* cpu, uint32_t adr) {
 		cpu->intDelay = false;
-		return cpu->read(cpu->mem, adr);
+		return cpu->read(adr);
 	}
 
 	static void cpu_write(Cpu* cpu, uint32_t adr, uint8_t val) {
 		cpu->intDelay = false;
-		cpu->write(cpu->mem, adr, val);
+		cpu->write(adr, val);
 	}
 
 	static void cpu_idle(Cpu* cpu) {
 		cpu->intDelay = false;
-		cpu->idle(cpu->mem, false);
+		cpu->idle(false);
 	}
 
 	static void cpu_idleWait(Cpu* cpu) {
 		cpu->intDelay = false;
-		cpu->idle(cpu->mem, true);
+		cpu->idle(true);
 	}
 
 	static void cpu_checkInt(Cpu* cpu) {

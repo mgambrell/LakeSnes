@@ -59,37 +59,39 @@ namespace LakeSnes
     uint8_t openBus;
   };
 
-  Snes* snes_init(void);
-  void snes_free(Snes* snes);
-  void snes_reset(Snes* snes, bool hard);
-  void snes_handleState(Snes* snes, StateHandler* sh);
-  void snes_runFrame(Snes* snes);
+  Snes* snes_init();
+  void snes_free();
+  void snes_reset(bool hard);
+  void snes_handleState(StateHandler* sh);
+  void snes_runFrame();
   // used by dma, cpu
-  void snes_runCycles(Snes* snes, int cycles);
-  void snes_syncCycles(Snes* snes, bool start, int syncCycles);
-  uint8_t snes_readBBus(Snes* snes, uint8_t adr);
-  void snes_writeBBus(Snes* snes, uint8_t adr, uint8_t val);
-  uint8_t snes_read(Snes* snes, uint32_t adr);
-  void snes_write(Snes* snes, uint32_t adr, uint8_t val);
-  void snes_cpuIdle(void* mem, bool waiting);
-  uint8_t snes_cpuRead(void* mem, uint32_t adr);
-  void snes_cpuWrite(void* mem, uint32_t adr, uint8_t val);
+  void snes_runCycles(int cycles);
+  void snes_syncCycles(bool start, int syncCycles);
+  uint8_t snes_readBBus(uint8_t adr);
+  void snes_writeBBus(uint8_t adr, uint8_t val);
+  uint8_t snes_read(uint32_t adr);
+  void snes_write(uint32_t adr, uint8_t val);
+  void snes_cpuIdle(bool waiting);
+  uint8_t snes_cpuRead(uint32_t adr);
+  void snes_cpuWrite(uint32_t adr, uint8_t val);
   // debugging
-  void snes_runCpuCycle(Snes* snes);
-  void snes_runSpcCycle(Snes* snes);
+  void snes_runCpuCycle();
+  void snes_runSpcCycle();
 
   // snes_other.c functions:
 
-  bool snes_loadRom(Snes* snes, const uint8_t* data, int length);
+  bool snes_loadRom(const uint8_t* data, int length);
 
   // playerNumber shall be 1 or 2 (playerNumber 0 is not valid)
-  void snes_setButtonState(Snes* snes, int playerNumber, int button, bool pressed);
+  void snes_setButtonState(int playerNumber, int button, bool pressed);
 
-  void snes_setPixels(Snes* snes, uint8_t* pixelData);
-  void snes_setSamples(Snes* snes, int16_t* sampleData, int samplesPerFrame);
-  int snes_saveBattery(Snes* snes, uint8_t* data);
-  bool snes_loadBattery(Snes* snes, uint8_t* data, int size);
-  int snes_saveState(Snes* snes, uint8_t* data);
-  bool snes_loadState(Snes* snes, uint8_t* data, int size);
+  void snes_setPixels(uint8_t* pixelData);
+  void snes_setSamples(int16_t* sampleData, int samplesPerFrame);
+  int snes_saveBattery(uint8_t* data);
+  bool snes_loadBattery(uint8_t* data, int size);
+  int snes_saveState(uint8_t* data);
+  bool snes_loadState(uint8_t* data, int size);
+
+  extern Snes g_snes;
 
 }

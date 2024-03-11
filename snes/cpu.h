@@ -6,9 +6,9 @@ namespace LakeSnes
 {
 	struct StateHandler;
 
-	typedef uint8_t (*CpuReadHandler)(void* mem, uint32_t adr);
-	typedef void (*CpuWriteHandler)(void* mem, uint32_t adr, uint8_t val);
-	typedef void (*CpuIdleHandler)(void* mem, bool waiting);
+	typedef uint8_t (*CpuReadHandler)(uint32_t adr);
+	typedef void (*CpuWriteHandler)(uint32_t adr, uint8_t val);
+	typedef void (*CpuIdleHandler)(bool waiting);
 
 	struct Cpu
 	{

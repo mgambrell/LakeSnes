@@ -15,24 +15,26 @@
 #include <string.h>
 #include <stdint.h>
 
+#define snes (&LakeSnes::g_snes)
+
 namespace LakeSnes
 {
+	Snes g_snes;
 
-	static void snes_runCycle(Snes* snes);
-	static void snes_catchupApu(Snes* snes);
-	static void snes_doAutoJoypad(Snes* snes);
-	static uint8_t snes_readReg(Snes* snes, uint16_t adr);
-	static void snes_writeReg(Snes* snes, uint16_t adr, uint8_t val);
-	static uint8_t snes_rread(Snes* snes, uint32_t adr); // wrapped by read, to set open bus
-	static int snes_getAccessTime(Snes* snes, uint32_t adr);
-	static void build_accesstime(Snes* snes, bool init);
+	static void snes_runCycle();
+	static void snes_catchupApu();
+	static void snes_doAutoJoypad();
+	static uint8_t snes_readReg(uint16_t adr);
+	static void snes_writeReg(uint16_t adr, uint8_t val);
+	static uint8_t snes_rread(uint32_t adr); // wrapped by read, to set open bus
+	static int snes_getAccessTime(uint32_t adr);
+	static void build_accesstime(bool init);
 	static void free_accesstime();
 
 	static uint8_t *access_time;
 
-	Snes* snes_init(void) {
-		Snes* snes = (Snes*)malloc(sizeof(Snes));
-		snes->cpu = cpu_init(snes, snes_cpuRead, snes_cpuWrite, snes_cpuIdle);
+	Snes* snes_init() {
+		snes->cpu = cpu_init(snes, &snes_cpuRead, &snes_cpuWrite, &snes_cpuIdle);
 		snes->apu = apu_init(snes);
 		snes->dma = dma_init(snes);
 		snes->ppu = ppu_init(snes);
@@ -40,11 +42,11 @@ namespace LakeSnes
 		snes->input1 = input_init(snes);
 		snes->input2 = input_init(snes);
 		snes->palTiming = false;
-		build_accesstime(snes, true);
+		build_accesstime(true);
 		return snes;
 	}
 
-	void snes_free(Snes* snes) {
+	void snes_free() {
 		cpu_free(snes->cpu);
 		apu_free(snes->apu);
 		dma_free(snes->dma);
@@ -53,10 +55,9 @@ namespace LakeSnes
 		input_free(snes->input1);
 		input_free(snes->input2);
 		free_accesstime();
-		free(snes);
 	}
 
-	void snes_reset(Snes* snes, bool hard) {
+	void snes_reset(bool hard) {
 		cpu_reset(snes->cpu, hard);
 		apu_reset(snes->apu);
 		dma_reset(snes->dma);
@@ -93,7 +94,7 @@ namespace LakeSnes
 		snes->nextHoriEvent = 16;
 	}
 
-	void snes_handleState(Snes* snes, StateHandler* sh) {
+	void snes_handleState(StateHandler* sh) {
 		sh_handleBools(sh,
 			&snes->palTiming, &snes->hIrqEnabled, &snes->vIrqEnabled, &snes->nmiEnabled, &snes->inNmi, &snes->irqCondition,
 			&snes->inIrq, &snes->inVblank, &snes->autoJoyRead, &snes->ppuLatch, &snes->fastMem, NULL
@@ -117,7 +118,7 @@ namespace LakeSnes
 		cart_handleState(snes->cart, sh);
 	}
 
-	void snes_runFrame(Snes* snes) {
+	void snes_runFrame() {
 		while(snes->inVblank) {
 			cpu_runOpcode(snes->cpu);
 		}
@@ -127,28 +128,28 @@ namespace LakeSnes
 		}
 	}
 
-	void snes_runCycles(Snes* snes, int cycles) {
+	void snes_runCycles(int cycles) {
 		if(snes->hPos + cycles >= 536 && snes->hPos < 536) {
 			// if we go past 536, add 40 cycles for dram refersh
 			cycles += 40;
 		}
 		for(int i = 0; i < cycles; i += 2) {
-			snes_runCycle(snes);
+			snes_runCycle();
 		}
 	}
 
-	void snes_syncCycles(Snes* snes, bool start, int syncCycles) {
+	void snes_syncCycles(bool start, int syncCycles) {
 		if(start) {
 			snes->syncCycle = snes->cycles;
 			int count = syncCycles - (snes->cycles % syncCycles);
-			snes_runCycles(snes, count);
+			snes_runCycles(count);
 		} else {
 			int count = syncCycles - ((snes->cycles - snes->syncCycle) % syncCycles);
-			snes_runCycles(snes, count);
+			snes_runCycles(count);
 		}
 	}
 
-	static void snes_runCycle(Snes* snes) {
+	static void snes_runCycle() {
 		snes->cycles += 2;
 		// increment position
 		snes->hPos += 2;
@@ -226,7 +227,7 @@ namespace LakeSnes
 					}
 					if(startingVblank) {
 						// catch up the apu at end of emulated frame (we end frame @ start of vblank)
-						snes_catchupApu(snes);
+						snes_catchupApu();
 						// notify dsp of frame-end, because sometimes dma will extend much further past vblank (or even into the next frame)
 						// Megaman X2 (titlescreen animation), Tales of Phantasia (game demo), Actraiser 2 (fade-in @ bootup)
 				dsp_newFrame(snes->apu->dsp);
@@ -237,7 +238,7 @@ namespace LakeSnes
 						if(snes->autoJoyRead) {
 							// TODO: this starts a little after start of vblank
 							snes->autoJoyTimer = 4224;
-							snes_doAutoJoypad(snes);
+							snes_doAutoJoypad();
 						}
 						if(snes->nmiEnabled) {
 							cpu_nmi(snes->cpu);
@@ -250,11 +251,11 @@ namespace LakeSnes
 		if(snes->autoJoyTimer > 0) snes->autoJoyTimer -= 2;
 	}
 
-	static void snes_catchupApu(Snes* snes) {
+	static void snes_catchupApu() {
 		apu_runCycles(snes->apu);
 	}
 
-	static void snes_doAutoJoypad(Snes* snes) {
+	static void snes_doAutoJoypad() {
 		memset(snes->portAutoRead, 0, sizeof(snes->portAutoRead));
 		// latch controllers
 		input_latch(snes->input1, true);
@@ -271,12 +272,12 @@ namespace LakeSnes
 		}
 	}
 
-	uint8_t snes_readBBus(Snes* snes, uint8_t adr) {
+	uint8_t snes_readBBus(uint8_t adr) {
 		if(adr < 0x40) {
 			return ppu_read(snes->ppu, adr);
 		}
 		if(adr < 0x80) {
-			snes_catchupApu(snes); // catch up the apu before reading
+			snes_catchupApu(); // catch up the apu before reading
 			return snes->apu->outPorts[adr & 0x3];
 		}
 		if(adr == 0x80) {
@@ -287,13 +288,13 @@ namespace LakeSnes
 		return snes->openBus;
 	}
 
-	void snes_writeBBus(Snes* snes, uint8_t adr, uint8_t val) {
+	void snes_writeBBus(uint8_t adr, uint8_t val) {
 		if(adr < 0x40) {
 			ppu_write(snes->ppu, adr, val);
 			return;
 		}
 		if(adr < 0x80) {
-			snes_catchupApu(snes); // catch up the apu before writing
+			snes_catchupApu(); // catch up the apu before writing
 			snes->apu->inPorts[adr & 0x3] = val;
 			return;
 		}
@@ -318,7 +319,7 @@ namespace LakeSnes
 		}
 	}
 
-	static uint8_t snes_readReg(Snes* snes, uint16_t adr) {
+	static uint8_t snes_readReg(uint16_t adr) {
 		switch(adr) {
 			case 0x4210: {
 				uint8_t val = 0x2; // CPU version (4 bit)
@@ -371,7 +372,7 @@ namespace LakeSnes
 		}
 	}
 
-	static void snes_writeReg(Snes* snes, uint16_t adr, uint8_t val) {
+	static void snes_writeReg(uint16_t adr, uint8_t val) {
 		switch(adr) {
 			case 0x4200: {
 				snes->autoJoyRead = val & 0x1;
@@ -450,7 +451,7 @@ namespace LakeSnes
 			}
 			case 0x420d: {
 				if (snes->fastMem != (val & 0x1)) {
-					build_accesstime(snes, false);
+					build_accesstime(false);
 				}
 				snes->fastMem = val & 0x1;
 				break;
@@ -461,7 +462,7 @@ namespace LakeSnes
 		}
 	}
 
-	static uint8_t snes_rread(Snes* snes, uint32_t adr) {
+	static uint8_t snes_rread(uint32_t adr) {
 		uint8_t bank = adr >> 16;
 		adr &= 0xffff;
 		if(bank == 0x7e || bank == 0x7f) {
@@ -472,7 +473,7 @@ namespace LakeSnes
 				return snes->ram[adr]; // ram mirror
 			}
 			if(adr >= 0x2100 && adr < 0x2200) {
-				return snes_readBBus(snes, adr & 0xff); // B-bus
+				return snes_readBBus(adr & 0xff); // B-bus
 			}
 			if(adr == 0x4016) {
 				return input_read(snes->input1) | (snes->openBus & 0xfc);
@@ -481,7 +482,7 @@ namespace LakeSnes
 				return input_read(snes->input2) | (snes->openBus & 0xe0) | 0x1c;
 			}
 			if(adr >= 0x4200 && adr < 0x4220) {
-				return snes_readReg(snes, adr); // internal registers
+				return snes_readReg(adr); // internal registers
 			}
 			if(adr >= 0x4300 && adr < 0x4380) {
 				return dma_read(snes->dma, adr); // dma registers
@@ -491,7 +492,7 @@ namespace LakeSnes
 		return cart_read(snes->cart, bank, adr);
 	}
 
-	void snes_write(Snes* snes, uint32_t adr, uint8_t val) {
+	void snes_write(uint32_t adr, uint8_t val) {
 		snes->openBus = val;
 		uint8_t bank = adr >> 16;
 		adr &= 0xffff;
@@ -503,14 +504,14 @@ namespace LakeSnes
 				snes->ram[adr] = val; // ram mirror
 			}
 			if(adr >= 0x2100 && adr < 0x2200) {
-				snes_writeBBus(snes, adr & 0xff, val); // B-bus
+				snes_writeBBus(adr & 0xff, val); // B-bus
 			}
 			if(adr == 0x4016) {
 				input_latch(snes->input1, val & 1); // input latch
 				input_latch(snes->input2, val & 1);
 			}
 			if(adr >= 0x4200 && adr < 0x4220) {
-				snes_writeReg(snes, adr, val); // internal registers
+				snes_writeReg(adr, val); // internal registers
 			}
 			if(adr >= 0x4300 && adr < 0x4380) {
 				dma_write(snes->dma, adr, val); // dma registers
@@ -520,7 +521,7 @@ namespace LakeSnes
 		cart_write(snes->cart, bank, adr, val);
 	}
 
-	static int snes_getAccessTime(Snes* snes, uint32_t adr) {
+	static int snes_getAccessTime(uint32_t adr) {
 		uint8_t bank = adr >> 16;
 		adr &= 0xffff;
 		if((bank < 0x40 || (bank >= 0x80 && bank < 0xc0)) && adr < 0x8000) {
@@ -533,12 +534,12 @@ namespace LakeSnes
 		return (snes->fastMem && bank >= 0x80) ? 6 : 8; // depends on setting in banks 80+
 	}
 
-	static void build_accesstime(Snes* snes, bool init) {
+	static void build_accesstime(bool init) {
 		if (init) {
 			access_time = (uint8_t *)malloc(0x1000000);
 		}
 		for (int i = 0; i < 0x1000000; i++) {
-			access_time[i] = snes_getAccessTime(snes, i);
+			access_time[i] = snes_getAccessTime(i);
 		}
 	}
 
@@ -546,44 +547,41 @@ namespace LakeSnes
 		free(access_time);
 	}
 
-	uint8_t snes_read(Snes* snes, uint32_t adr) {
-		uint8_t val = snes_rread(snes, adr);
+	uint8_t snes_read(uint32_t adr) {
+		uint8_t val = snes_rread(adr);
 		snes->openBus = val;
 		return val;
 	}
 
-	void snes_cpuIdle(void* mem, bool waiting) {
-		Snes* snes = (Snes*) mem;
+	void snes_cpuIdle(bool waiting) {
 		dma_handleDma(snes->dma, 6);
-		snes_runCycles(snes, 6);
+		snes_runCycles(6);
 	}
 
-	uint8_t snes_cpuRead(void* mem, uint32_t adr) {
-		Snes* snes = (Snes*) mem;
+	uint8_t snes_cpuRead(uint32_t adr) {
 		const int cycles = access_time[adr] - 4;
 		dma_handleDma(snes->dma, cycles);
-		snes_runCycles(snes, cycles);
-		uint8_t rv = snes_read(snes, adr);
+		snes_runCycles(cycles);
+		uint8_t rv = snes_read(adr);
 		dma_handleDma(snes->dma, 4);
-		snes_runCycles(snes, 4);
+		snes_runCycles(4);
 		return rv;
 	}
 
-	void snes_cpuWrite(void* mem, uint32_t adr, uint8_t val) {
-		Snes* snes = (Snes*) mem;
+	void snes_cpuWrite(uint32_t adr, uint8_t val) {
 		const int cycles = access_time[adr];
 		dma_handleDma(snes->dma, cycles);
-		snes_runCycles(snes, cycles);
-		snes_write(snes, adr, val);
+		snes_runCycles(cycles);
+		snes_write(adr, val);
 	}
 
 	// debugging
 
-	void snes_runCpuCycle(Snes* snes) {
+	void snes_runCpuCycle() {
 		cpu_runOpcode(snes->cpu);
 	}
 
-	void snes_runSpcCycle(Snes* snes) {
+	void snes_runSpcCycle() {
 		// TODO: apu catchup is not aware of this, SPC runs extra cycle(s)
 		spc_runOpcode(snes->apu->spc);
 	}

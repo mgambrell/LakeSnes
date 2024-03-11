@@ -232,7 +232,7 @@ namespace LakeSnes
 		cx4.prg_cache[cx4.prg_cache_page] = address;
 
 		for (int i = 0; i < CACHE_PAGE; i++) {
-			cx4.prg[cx4.prg_cache_page][i] = (snes_read(cx4.snes, address++) << 0) | (snes_read(cx4.snes, address++) << 8);
+			cx4.prg[cx4.prg_cache_page][i] = (snes_read(address++) << 0) | (snes_read(address++) << 8);
 		}
 
 		cx4.prg_cache_timer += ((cx4.waitstate & 0x07) * CACHE_PAGE) * 2;
@@ -289,8 +289,8 @@ namespace LakeSnes
 
 			if (cx4.bus_timer < 1) {
 				switch (cx4.bus_mode) {
-					case B_READ: cx4.bus_data = snes_read(cx4.snes, cx4.bus_address); break;
-					case B_WRITE: snes_write(cx4.snes, cx4.bus_address, cx4.bus_data); break;
+					case B_READ: cx4.bus_data = snes_read(cx4.bus_address); break;
+					case B_WRITE: snes_write(cx4.bus_address, cx4.bus_data); break;
 				}
 				cx4.bus_mode = B_IDLE;
 				cx4.bus_timer = 0;
@@ -344,7 +344,7 @@ namespace LakeSnes
 		//bprintf(0, _T("dma\tsrc/dest/len:  %x  %x  %x\n"), source, dest, cx4.dma_length);
 	#endif
 		for (int i = 0; i < cx4.dma_length; i++) {
-			snes_write(cx4.snes, dest++, snes_read(cx4.snes, source++));
+			snes_write(dest++, snes_read(source++));
 		}
 
 		cx4.dma_timer = cx4.dma_length * (1 + dest_cyc + source_cyc);
