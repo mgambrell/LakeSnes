@@ -4,11 +4,9 @@
 
 namespace LakeSnes
 {
-	struct Snes;
 	struct StateHandler;
 
 	struct Cart {
-		Snes* snes;
 		uint8_t type;
 
 		uint8_t* rom;

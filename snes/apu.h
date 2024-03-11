@@ -7,10 +7,6 @@
 
 namespace LakeSnes
 {
-	struct Apu;
-	struct Snes;
-	struct Spc;
-	struct Dsp;
 	struct StateHandler;
 
 	struct Timer {

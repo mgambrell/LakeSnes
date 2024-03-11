@@ -12,13 +12,6 @@
 
 namespace LakeSnes
 {
-  struct Snes;
-  struct Apu;
-  struct Dma;
-  struct Cart;
-  struct Cpu;
-  struct Ppu;
-  struct Input;
   struct StateHandler;
 
   struct Snes {

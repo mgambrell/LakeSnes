@@ -4,7 +4,6 @@
 
 namespace LakeSnes
 {
-	struct Snes;
 	struct StateHandler;
 
 	struct DmaChannel {

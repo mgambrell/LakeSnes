@@ -4,7 +4,6 @@
 
 namespace LakeSnes
 {
-	struct Apu;
 	struct StateHandler;
 
 	struct DspChannel {

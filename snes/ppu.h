@@ -4,7 +4,6 @@
 
 namespace LakeSnes
 {
-	struct Snes;
 	struct StateHandler;
 
 	struct BgLayer {
@@ -34,7 +33,6 @@ namespace LakeSnes
 	};
 
 	struct Ppu {
-		Snes* snes;
 		// vram access
 		uint16_t vram[0x8000];
 		uint16_t vramPointer;
