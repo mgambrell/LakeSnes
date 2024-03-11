@@ -29,21 +29,19 @@ namespace LakeSnes
 	};
 
 	struct Dma {
-		Snes* snes;
 		DmaChannel channel[8];
 		uint8_t dmaState;
 		bool hdmaInitRequested;
 		bool hdmaRunRequested;
 	};
 
-	Dma* dma_init(Snes* snes);
-	void dma_free(Dma* dma);
-	void dma_reset(Dma* dma);
-	void dma_handleState(Dma* dma, StateHandler* sh);
-	uint8_t dma_read(Dma* dma, uint16_t adr); // 43x0-43xf
-	void dma_write(Dma* dma, uint16_t adr, uint8_t val); // 43x0-43xf
-	void dma_handleDma(Dma* dma, int cpuCycles);
-	void dma_startDma(Dma* dma, uint8_t val, bool hdma);
+	void dma_init(Snes* snes);
+	void dma_reset();
+	void dma_handleState(StateHandler* sh);
+	uint8_t dma_read(uint16_t adr); // 43x0-43xf
+	void dma_write(uint16_t adr, uint8_t val); // 43x0-43xf
+	void dma_handleDma(int cpuCycles);
+	void dma_startDma(uint8_t val, bool hdma);
 
 }
 

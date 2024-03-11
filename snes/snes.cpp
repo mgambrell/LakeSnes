@@ -35,7 +35,6 @@ namespace LakeSnes
 	Snes* snes_init() {
 		cpu_init(&snes_cpuRead, &snes_cpuWrite, &snes_cpuIdle);
 		snes->apu = apu_init(snes);
-		snes->dma = dma_init(snes);
 		snes->ppu = ppu_init(snes);
 		snes->cart = cart_init(snes);
 		snes->input1 = input_init(snes);
@@ -47,7 +46,6 @@ namespace LakeSnes
 
 	void snes_free() {
 		apu_free(snes->apu);
-		dma_free(snes->dma);
 		ppu_free(snes->ppu);
 		cart_free(snes->cart);
 		input_free(snes->input1);
@@ -58,7 +56,7 @@ namespace LakeSnes
 	void snes_reset(bool hard) {
 		cpu_reset(hard);
 		apu_reset(snes->apu);
-		dma_reset(snes->dma);
+		dma_reset();
 		ppu_reset(snes->ppu);
 		input_reset(snes->input1);
 		input_reset(snes->input2);
@@ -108,7 +106,7 @@ namespace LakeSnes
 		sh_handleByteArray(sh, snes->ram, 0x20000);
 		// components
 		cpu_handleState(sh);
-		dma_handleState(snes->dma, sh);
+		dma_handleState(sh);
 		ppu_handleState(snes->ppu, sh);
 		apu_handleState(snes->apu, sh);
 		input_handleState(snes->input1, sh);
@@ -167,7 +165,7 @@ namespace LakeSnes
 			switch (snes->hPos) {
 				case 16: {
 					snes->nextHoriEvent = 512;
-					if(snes->vPos == 0) snes->dma->hdmaInitRequested = true;
+					if(snes->vPos == 0) dma->hdmaInitRequested = true;
 				} break;
 				case 512: {
 					snes->nextHoriEvent = 1104;
@@ -175,7 +173,7 @@ namespace LakeSnes
 					if(!snes->inVblank && snes->vPos > 0) ppu_runLine(snes->ppu, snes->vPos);
 				} break;
 				case 1104: {
-					if(!snes->inVblank) snes->dma->hdmaRunRequested = true;
+					if(!snes->inVblank) dma->hdmaRunRequested = true;
 					if(!snes->palTiming) {
 						// line 240 of odd frame with no interlace is 4 cycles shorter
 						// if((snes->hPos == 1360 && snes->vPos == 240 && !ppu_evenFrame() && !ppu_frameInterlace()) || snes->hPos == 1364) {
@@ -440,11 +438,11 @@ namespace LakeSnes
 				break;
 			}
 			case 0x420b: {
-				dma_startDma(snes->dma, val, false);
+				dma_startDma(val, false);
 				break;
 			}
 			case 0x420c: {
-				dma_startDma(snes->dma, val, true);
+				dma_startDma(val, true);
 				break;
 			}
 			case 0x420d: {
@@ -483,7 +481,7 @@ namespace LakeSnes
 				return snes_readReg(adr); // internal registers
 			}
 			if(adr >= 0x4300 && adr < 0x4380) {
-				return dma_read(snes->dma, adr); // dma registers
+				return dma_read(adr); // dma registers
 			}
 		}
 		// read from cart
@@ -512,7 +510,7 @@ namespace LakeSnes
 				snes_writeReg(adr, val); // internal registers
 			}
 			if(adr >= 0x4300 && adr < 0x4380) {
-				dma_write(snes->dma, adr, val); // dma registers
+				dma_write(adr, val); // dma registers
 			}
 		}
 		// write to cart
@@ -552,23 +550,23 @@ namespace LakeSnes
 	}
 
 	void snes_cpuIdle(bool waiting) {
-		dma_handleDma(snes->dma, 6);
+		dma_handleDma(6);
 		snes_runCycles(6);
 	}
 
 	uint8_t snes_cpuRead(uint32_t adr) {
 		const int cycles = access_time[adr] - 4;
-		dma_handleDma(snes->dma, cycles);
+		dma_handleDma(cycles);
 		snes_runCycles(cycles);
 		uint8_t rv = snes_read(adr);
-		dma_handleDma(snes->dma, 4);
+		dma_handleDma(4);
 		snes_runCycles(4);
 		return rv;
 	}
 
 	void snes_cpuWrite(uint32_t adr, uint8_t val) {
 		const int cycles = access_time[adr];
-		dma_handleDma(snes->dma, cycles);
+		dma_handleDma(cycles);
 		snes_runCycles(cycles);
 		snes_write(adr, val);
 	}

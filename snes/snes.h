@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 #include "cpu.h"
+#include "dma.h"
 
 namespace LakeSnes
 {
@@ -19,7 +20,7 @@ namespace LakeSnes
     Cpu mycpu;
     Apu* apu;
     Ppu* ppu;
-    Dma* dma;
+    Dma mydma;
     Cart* cart;
     bool palTiming;
     // input
