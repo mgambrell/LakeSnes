@@ -10,3 +10,4 @@ namespace LakeSnes
 #define snes (&LakeSnes::g_snes)
 #define cpu (&snes->mycpu)
 #define dma (&snes->mydma)
+#define apu (&snes->myapu)

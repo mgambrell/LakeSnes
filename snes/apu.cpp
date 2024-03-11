@@ -1,14 +1,14 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdint.h>
-#include <stdbool.h>
-
 #include "apu.h"
 #include "snes.h"
 #include "spc.h"
 #include "dsp.h"
 #include "statehandler.h"
+#include "global.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
 
 namespace LakeSnes
 {
@@ -23,7 +23,7 @@ namespace LakeSnes
 	static const double apuCyclesPerMaster = (32040 * 32) / (1364 * 262 * 60.0);
 	static const double apuCyclesPerMasterPal = (32040 * 32) / (1364 * 312 * 50.0);
 
-	static void apu_cycle(Apu* apu) {
+	static void apu_cycle() {
 		if((apu->cycles & 0x1f) == 0) {
 			// every 32 cycles
 			dsp_cycle(apu->dsp);
@@ -48,21 +48,17 @@ namespace LakeSnes
 		apu->cycles++;
 	}
 
-	Apu* apu_init(Snes* snes) {
-		Apu* apu = (Apu*)malloc(sizeof(Apu));
-		apu->snes = snes;
+	void apu_init() {
 		apu->spc = spc_init(apu, apu_spcRead, apu_spcWrite, apu_spcIdle);
 		apu->dsp = dsp_init(apu);
-		return apu;
 	}
 
-	void apu_free(Apu* apu) {
+	void apu_free() {
 		spc_free(apu->spc);
 		dsp_free(apu->dsp);
-		free(apu);
 	}
 
-	void apu_reset(Apu* apu) {
+	void apu_reset() {
 		// TODO: hard reset for apu
 		spc_reset(apu->spc, true);
 		dsp_reset(apu->dsp);
@@ -81,7 +77,7 @@ namespace LakeSnes
 		}
 	}
 
-	void apu_handleState(Apu* apu, StateHandler* sh) {
+	void apu_handleState( StateHandler* sh) {
 		sh_handleBools(sh, &apu->romReadable, NULL);
 		sh_handleBytes(sh,
 			&apu->dspAdr, &apu->inPorts[0], &apu->inPorts[1], &apu->inPorts[2], &apu->inPorts[3], &apu->inPorts[4],
@@ -98,15 +94,15 @@ namespace LakeSnes
 		dsp_handleState(apu->dsp, sh);
 	}
 
-	void apu_runCycles(Apu* apu) {
-		uint64_t sync_to = (uint64_t)apu->snes->cycles * (apu->snes->palTiming ? apuCyclesPerMasterPal : apuCyclesPerMaster);
+	void apu_runCycles() {
+		uint64_t sync_to = (uint64_t)snes->cycles * (snes->palTiming ? apuCyclesPerMasterPal : apuCyclesPerMaster);
 
 		while (apu->cycles < sync_to) {
 			spc_runOpcode(apu->spc);
 		}
 	}
 
-	uint8_t apu_read(Apu* apu, uint16_t adr) {
+	uint8_t apu_read( uint16_t adr) {
 		switch(adr) {
 			case 0xf0:
 			case 0xf1:
@@ -143,7 +139,7 @@ namespace LakeSnes
 		return apu->ram[adr];
 	}
 
-	void apu_write(Apu* apu, uint16_t adr, uint8_t val) {
+	void apu_write( uint16_t adr, uint8_t val) {
 		switch(adr) {
 			case 0xf0: {
 				break; // test register
@@ -198,20 +194,17 @@ namespace LakeSnes
 	}
 
 	uint8_t apu_spcRead(void* mem, uint16_t adr) {
-		Apu* apu = (Apu*) mem;
-		apu_cycle(apu);
-		return apu_read(apu, adr);
+		apu_cycle();
+		return apu_read(adr);
 	}
 
 	void apu_spcWrite(void* mem, uint16_t adr, uint8_t val) {
-		Apu* apu = (Apu*) mem;
-		apu_cycle(apu);
-		apu_write(apu, adr, val);
+		apu_cycle();
+		apu_write(adr, val);
 	}
 
 	void apu_spcIdle(void* mem, bool waiting) {
-		Apu* apu = (Apu*) mem;
-		apu_cycle(apu);
+		apu_cycle();
 	}
 
 }

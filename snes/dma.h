@@ -35,7 +35,7 @@ namespace LakeSnes
 		bool hdmaRunRequested;
 	};
 
-	void dma_init(Snes* snes);
+	void dma_init();
 	void dma_reset();
 	void dma_handleState(StateHandler* sh);
 	uint8_t dma_read(uint16_t adr); // 43x0-43xf

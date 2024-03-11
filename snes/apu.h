@@ -32,11 +32,11 @@ namespace LakeSnes
 	};
 
 
-	Apu* apu_init(Snes* snes);
-	void apu_free(Apu* apu);
-	void apu_reset(Apu* apu);
-	void apu_handleState(Apu* apu, StateHandler* sh);
-	void apu_runCycles(Apu* apu);
+	void apu_init();
+	void apu_free();
+	void apu_reset();
+	void apu_handleState(StateHandler* sh);
+	void apu_runCycles();
 	uint8_t apu_spcRead(void* mem, uint16_t adr);
 	void apu_spcWrite(void* mem, uint16_t adr, uint8_t val);
 	void apu_spcIdle(void* mem, bool waiting);

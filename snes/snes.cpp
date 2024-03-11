@@ -34,7 +34,8 @@ namespace LakeSnes
 
 	Snes* snes_init() {
 		cpu_init(&snes_cpuRead, &snes_cpuWrite, &snes_cpuIdle);
-		snes->apu = apu_init(snes);
+		dma_init();
+		apu_init();
 		snes->ppu = ppu_init(snes);
 		snes->cart = cart_init(snes);
 		snes->input1 = input_init(snes);
@@ -45,7 +46,6 @@ namespace LakeSnes
 	}
 
 	void snes_free() {
-		apu_free(snes->apu);
 		ppu_free(snes->ppu);
 		cart_free(snes->cart);
 		input_free(snes->input1);
@@ -55,7 +55,7 @@ namespace LakeSnes
 
 	void snes_reset(bool hard) {
 		cpu_reset(hard);
-		apu_reset(snes->apu);
+		apu_reset();
 		dma_reset();
 		ppu_reset(snes->ppu);
 		input_reset(snes->input1);
@@ -108,7 +108,7 @@ namespace LakeSnes
 		cpu_handleState(sh);
 		dma_handleState(sh);
 		ppu_handleState(snes->ppu, sh);
-		apu_handleState(snes->apu, sh);
+		apu_handleState(sh);
 		input_handleState(snes->input1, sh);
 		input_handleState(snes->input2, sh);
 		cart_handleState(snes->cart, sh);
@@ -226,7 +226,7 @@ namespace LakeSnes
 						snes_catchupApu();
 						// notify dsp of frame-end, because sometimes dma will extend much further past vblank (or even into the next frame)
 						// Megaman X2 (titlescreen animation), Tales of Phantasia (game demo), Actraiser 2 (fade-in @ bootup)
-				dsp_newFrame(snes->apu->dsp);
+				dsp_newFrame(snes->myapu.dsp);
 						// we are starting vblank
 						ppu_handleVblank(snes->ppu);
 						snes->inVblank = true;
@@ -248,7 +248,7 @@ namespace LakeSnes
 	}
 
 	static void snes_catchupApu() {
-		apu_runCycles(snes->apu);
+		apu_runCycles();
 	}
 
 	static void snes_doAutoJoypad() {
@@ -274,7 +274,7 @@ namespace LakeSnes
 		}
 		if(adr < 0x80) {
 			snes_catchupApu(); // catch up the apu before reading
-			return snes->apu->outPorts[adr & 0x3];
+			return snes->myapu.outPorts[adr & 0x3];
 		}
 		if(adr == 0x80) {
 			uint8_t ret = snes->ram[snes->ramAdr++];
@@ -291,7 +291,7 @@ namespace LakeSnes
 		}
 		if(adr < 0x80) {
 			snes_catchupApu(); // catch up the apu before writing
-			snes->apu->inPorts[adr & 0x3] = val;
+			snes->myapu.inPorts[adr & 0x3] = val;
 			return;
 		}
 		switch(adr) {
@@ -579,7 +579,7 @@ namespace LakeSnes
 
 	void snes_runSpcCycle() {
 		// TODO: apu catchup is not aware of this, SPC runs extra cycle(s)
-		spc_runOpcode(snes->apu->spc);
+		spc_runOpcode(snes->myapu.spc);
 	}
 
  }

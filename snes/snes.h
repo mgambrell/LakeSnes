@@ -4,6 +4,7 @@
 
 #include "cpu.h"
 #include "dma.h"
+#include "apu.h"
 
 namespace LakeSnes
 {
@@ -18,7 +19,7 @@ namespace LakeSnes
 
   struct Snes {
     Cpu mycpu;
-    Apu* apu;
+    Apu myapu;
     Ppu* ppu;
     Dma mydma;
     Cart* cart;
