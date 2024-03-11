@@ -9,13 +9,12 @@
 #include "cx4.h"
 #include "input.h"
 #include "statehandler.h"
+#include "global.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
-
-#define snes (&LakeSnes::g_snes)
 
 namespace LakeSnes
 {
@@ -34,7 +33,7 @@ namespace LakeSnes
 	static uint8_t *access_time;
 
 	Snes* snes_init() {
-		snes->cpu = cpu_init(snes, &snes_cpuRead, &snes_cpuWrite, &snes_cpuIdle);
+		cpu_init(&snes_cpuRead, &snes_cpuWrite, &snes_cpuIdle);
 		snes->apu = apu_init(snes);
 		snes->dma = dma_init(snes);
 		snes->ppu = ppu_init(snes);
@@ -47,7 +46,6 @@ namespace LakeSnes
 	}
 
 	void snes_free() {
-		cpu_free(snes->cpu);
 		apu_free(snes->apu);
 		dma_free(snes->dma);
 		ppu_free(snes->ppu);
@@ -58,7 +56,7 @@ namespace LakeSnes
 	}
 
 	void snes_reset(bool hard) {
-		cpu_reset(snes->cpu, hard);
+		cpu_reset(hard);
 		apu_reset(snes->apu);
 		dma_reset(snes->dma);
 		ppu_reset(snes->ppu);
@@ -109,7 +107,7 @@ namespace LakeSnes
 		sh_handleLongLongs(sh, &snes->cycles, &snes->syncCycle, NULL);
 		sh_handleByteArray(sh, snes->ram, 0x20000);
 		// components
-		cpu_handleState(snes->cpu, sh);
+		cpu_handleState(sh);
 		dma_handleState(snes->dma, sh);
 		ppu_handleState(snes->ppu, sh);
 		apu_handleState(snes->apu, sh);
@@ -120,11 +118,11 @@ namespace LakeSnes
 
 	void snes_runFrame() {
 		while(snes->inVblank) {
-			cpu_runOpcode(snes->cpu);
+			cpu_runOpcode();
 		}
 		uint32_t frame = snes->frames;
 		while(!snes->inVblank && frame == snes->frames) {
-			cpu_runOpcode(snes->cpu);
+			cpu_runOpcode();
 		}
 	}
 
@@ -161,7 +159,7 @@ namespace LakeSnes
 		);
 		if(!snes->irqCondition && condition) {
 			snes->inIrq = true;
-			cpu_setIrq(snes->cpu, true);
+			cpu_setIrq(true);
 		}
 		snes->irqCondition = condition;
 		// handle positional stuff
@@ -241,7 +239,7 @@ namespace LakeSnes
 							snes_doAutoJoypad();
 						}
 						if(snes->nmiEnabled) {
-							cpu_nmi(snes->cpu);
+							cpu_nmi();
 						}
 					}
 				} break;
@@ -330,7 +328,7 @@ namespace LakeSnes
 			case 0x4211: {
 				uint8_t val = snes->inIrq << 7;
 				snes->inIrq = false;
-				cpu_setIrq(snes->cpu, false);
+				cpu_setIrq(false);
 				return val | (snes->openBus & 0x7f);
 			}
 			case 0x4212: {
@@ -381,14 +379,14 @@ namespace LakeSnes
 				snes->vIrqEnabled = val & 0x20;
 				if(!snes->hIrqEnabled && !snes->vIrqEnabled) {
 					snes->inIrq = false;
-					cpu_setIrq(snes->cpu, false);
+					cpu_setIrq(false);
 				}
 				// if nmi is enabled while inNmi is still set, immediately generate nmi
 				if(!snes->nmiEnabled && (val & 0x80) && snes->inNmi) {
-					cpu_nmi(snes->cpu);
+					cpu_nmi();
 				}
 				snes->nmiEnabled = val & 0x80;
-			snes->cpu->intDelay = true; // nmi/irq is delayed by 1 opcode (TODINK: check if this conflicts with above nmi..)
+			snes->mycpu.intDelay = true; // nmi/irq is delayed by 1 opcode (TODINK: check if this conflicts with above nmi..)
 			break;
 			}
 			case 0x4201: {
@@ -578,7 +576,7 @@ namespace LakeSnes
 	// debugging
 
 	void snes_runCpuCycle() {
-		cpu_runOpcode(snes->cpu);
+		cpu_runOpcode();
 	}
 
 	void snes_runSpcCycle() {

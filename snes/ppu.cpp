@@ -291,7 +291,6 @@ namespace LakeSnes
 	}
 
 	void ppu_runLine(Ppu* ppu, int line) {
-		return;
 		// called for lines 1-224/239
 		// evaluate sprites
 		memset(ppu->objPixelBuffer, 0, sizeof(ppu->objPixelBuffer));

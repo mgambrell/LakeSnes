@@ -465,7 +465,7 @@ namespace LakeSnes
 			case 0x7f51:
 				cx4.irqcfg = data & 0x01;
 				if (cx4.irqcfg & IRQ_ACKNOWLEDGE) {
-					cpu_setIrq(cx4.snes->cpu, false);
+					cpu_setIrq(false);
 					set_I(0);
 				}
 				break;
@@ -817,7 +817,7 @@ namespace LakeSnes
 				cx4.running = 0;
 				if (~cx4.irqcfg & IRQ_ACKNOWLEDGE) {
 					set_I(1);
-					cpu_setIrq(cx4.snes->cpu, true);
+					cpu_setIrq(true);
 				}
 				break;
 		}

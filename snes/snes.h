@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+#include "cpu.h"
+
 namespace LakeSnes
 {
   struct Snes;
@@ -14,7 +16,7 @@ namespace LakeSnes
   struct StateHandler;
 
   struct Snes {
-    Cpu* cpu;
+    Cpu mycpu;
     Apu* apu;
     Ppu* ppu;
     Dma* dma;

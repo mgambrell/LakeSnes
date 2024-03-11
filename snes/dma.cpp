@@ -209,7 +209,7 @@ namespace LakeSnes
 
 	static void dma_doDma(Dma* dma, int cpuCycles) {
 		// nmi/irq is delayed by 1 opcode if requested during dma/hdma
-		dma->snes->cpu->intDelay = true;
+		dma->snes->mycpu.intDelay = true;
 		// align to multiple of 8
 		snes_syncCycles(true, 8);
 		// full transfer overhead
@@ -250,7 +250,7 @@ namespace LakeSnes
 		}
 		if(!hdmaEnabled) return;
 		// nmi/irq is delayed by 1 opcode if requested during dma/hdma
-		dma->snes->cpu->intDelay = true;
+		dma->snes->mycpu.intDelay = true;
 		if(doSync) snes_syncCycles(true, 8);
 		// full transfer overhead
 		snes_runCycles(8);
@@ -287,7 +287,7 @@ namespace LakeSnes
 		}
 		if(!hdmaActive) return;
 		// nmi/irq is delayed by 1 opcode if requested during dma/hdma
-		dma->snes->cpu->intDelay = true;
+		dma->snes->mycpu.intDelay = true;
 		if(doSync) snes_syncCycles(true, 8);
 		// full transfer overhead
 		snes_runCycles(8);

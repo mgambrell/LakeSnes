@@ -13,7 +13,6 @@ namespace LakeSnes
 	struct Cpu
 	{
 		// reference to memory handler, pointers to read/write/idle handlers
-		void* mem;
 		CpuReadHandler read;
 		CpuWriteHandler write;
 		CpuIdleHandler idle;
@@ -47,12 +46,11 @@ namespace LakeSnes
 		bool resetWanted;
 	};
 
-	Cpu* cpu_init(void* mem, CpuReadHandler read, CpuWriteHandler write, CpuIdleHandler idle);
-	void cpu_free(Cpu* cpu);
-	void cpu_reset(Cpu* cpu, bool hard);
-	void cpu_handleState(Cpu* cpu, StateHandler* sh);
-	void cpu_runOpcode(Cpu* cpu);
-	void cpu_nmi(Cpu* cpu);
-	void cpu_setIrq(Cpu* cpu, bool state);
+	Cpu* cpu_init(CpuReadHandler read, CpuWriteHandler write, CpuIdleHandler idle);
+	void cpu_reset(bool hard);
+	void cpu_handleState(StateHandler* sh);
+	void cpu_runOpcode();
+	void cpu_nmi();
+	void cpu_setIrq(bool state);
 
 }
