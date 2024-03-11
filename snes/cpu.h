@@ -19,6 +19,7 @@ namespace LakeSnes
 		void cpu_setIrq(bool state);
 
 		uint8_t cpu_read(uint32_t adr);
+		void cpu_checkInt();
 
 	private:
 
@@ -40,7 +41,6 @@ namespace LakeSnes
 		void cpu_write(uint32_t adr, uint8_t val);
 		void cpu_idle();
 		void cpu_idleWait();
-		void cpu_checkInt();
 		uint8_t cpu_readOpcode();
 		uint16_t cpu_readOpcodeWord(bool intCheck);
 		uint8_t cpu_getFlags();

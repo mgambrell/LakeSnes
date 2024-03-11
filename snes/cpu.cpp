@@ -45,7 +45,6 @@ namespace
 		IOBLOCK_SLOWJOYPAD,
 	};
 
-	//NEXT UP: the entire memory map implementation is here
 	struct In {
 		int bank, addr;
 	} in;
@@ -56,7 +55,7 @@ namespace
 	} out;
 
 
-	template<int BANK> LAKENES_NOINLINE int cpu_access_new_work(LakeSnes::Snes* snes, int bank, int addr)
+	template<int BANK, MemOp OP> int cpu_access_new_work(LakeSnes::Snes* snes, int bank, uint16_t addr, int value)
 	{
 		#define CASE10(X) \
 			case 0x00+X: case 0x01+X: case 0x02+X: case 0x03+X: case 0x04+X: case 0x05+X: case 0x06+X: case 0x07+X: \
@@ -192,50 +191,111 @@ namespace
 				break;
 		}
 
-		kCycles -= 4;
-		snes->mydma.dma_handleDma(kCycles);
-		snes->snes_runCycles(kCycles);
 
-		uint8_t rv;
-		switch(out.res)
+		switch(OP)
 		{
 			LAKESNES_UNREACHABLE_CASE
-			case RESOURCE::OPENBUS:
-				rv = snes->openBus;
-				break;
-			case RESOURCE::ROM:
-				rv = snes->mycart.config.rom[out.offset & (snes->mycart.config.romSize - 1)];
-				break;
-			case RESOURCE::SRAM:
-				rv = snes->mycart.ram[out.offset & (snes->mycart.config.ramSize-1)];
-				break;
-			case RESOURCE::WRAM:
-				rv = snes->ram[out.offset];
-				break;
-			case RESOURCE::IOBLOCK:
-			case RESOURCE::IOBLOCK_SLOWJOYPAD:
-				rv = snes->snes_read(out.offset);
-				break;
+
+			case MemOp::Read:
+			case MemOp::Fetch: {
+
+				uint8_t rv = 0;
+
+				kCycles -= 4;
+				snes->mydma.dma_handleDma(kCycles);
+				snes->snes_runCycles(kCycles);
+
+				switch(out.res)
+				{
+					LAKESNES_UNREACHABLE_CASE
+					case RESOURCE::OPENBUS:
+						rv = snes->openBus;
+						break;
+					case RESOURCE::ROM:
+						rv = snes->mycart.config.rom[out.offset & (snes->mycart.config.romSize - 1)];
+						break;
+					case RESOURCE::SRAM:
+						rv = snes->mycart.ram[out.offset & (snes->mycart.config.ramSize-1)];
+						break;
+					case RESOURCE::WRAM:
+						rv = snes->ram[out.offset];
+						break;
+					case RESOURCE::IOBLOCK:
+					case RESOURCE::IOBLOCK_SLOWJOYPAD:
+						//thunk to old code for now (could be faster)
+						rv = snes->snes_read(out.offset);
+						break;
+				}
+
+				snes->mydma.dma_handleDma(4);
+				snes->snes_runCycles(4);
+				return (uint8_t)rv;
+			}
+
+			case MemOp::Write:
+				
+				snes->openBus = value;
+				snes->mydma.dma_handleDma(kCycles);
+				snes->snes_runCycles(kCycles);
+
+				switch(out.res)
+				{
+					LAKESNES_UNREACHABLE_CASE
+					case RESOURCE::OPENBUS:
+						break;
+					case RESOURCE::ROM:
+						break;
+					case RESOURCE::SRAM:
+						snes->mycart.ram[out.offset & (snes->mycart.config.ramSize-1)] = (uint8_t)value;
+						break;
+					case RESOURCE::WRAM:
+						snes->ram[out.offset] = (uint8_t)value;
+						break;
+					case RESOURCE::IOBLOCK:
+					case RESOURCE::IOBLOCK_SLOWJOYPAD:
+						//thunk to old code for now (could be faster)
+						snes->snes_write(out.offset, (uint8_t)value);
+						break;
+				}
+
+				return 0;
 		}
 		
-		
-		snes->mydma.dma_handleDma(4);
-		snes->snes_runCycles(4);
-		return (uint8_t)rv;
 	}
 
-	template<int BYTES, MemOp OP> int cpu_access_new(LakeSnes::Snes* snes, int bank, int addr, int value)
+	template<int BYTES, MemOp OP> int cpu_access_new(LakeSnes::Snes* snes, int bank, uint16_t addr, int value, bool reversed, bool intCheck)
 	{
+		//TODO: actually handle 2 byte accesses directly in one go
+		//(intCheck won't be able to intervene, but it's probably okay. we can make it configurable whether the writes are consolidated)
+		if(BYTES==2)
+		{
+			uint16_t L= addr;
+			uint16_t H = addr+1;
+			if(OP == MemOp::Write)
+			{
+				if(reversed) {
+					cpu_access_new<1,MemOp::Write>(snes,bank,H,value>>8,false,false);
+					if(intCheck) snes->mycpu.cpu_checkInt();
+					cpu_access_new<1,MemOp::Write>(snes,bank,L,value&0xFF,false,false);
+				} else {
+					cpu_access_new<1,MemOp::Write>(snes,bank,L,value&0xFF,false,false);
+					if(intCheck) snes->mycpu.cpu_checkInt();
+					cpu_access_new<1,MemOp::Write>(snes,bank,H,value>>8,false,false);
+				}
+				return 0;
+			}
+		}
+
 		//FOR NOW: assuming lorom+SRAM
 		//TODO: can we factor fastMem check out of this somehow?
 		//answer: YES: by keeping a fastrom bit set in a virtual bit 8 of the bank registers (which will never be changed), we can catch it here and map it differently
 
-		int barge;
+		int retval;
 		switch(bank)
 		{
 			LAKESNES_UNREACHABLE_CASE
 
-			#define DOIT(X) case X: barge = cpu_access_new_work<X>(snes,bank,addr); break;
+			#define DOIT(X) case X: retval = cpu_access_new_work<X,OP>(snes,bank,addr,value); break;
 			DOIT(0)DOIT(1)DOIT(2)DOIT(3)DOIT(4)DOIT(5)DOIT(6)DOIT(7)DOIT(8)DOIT(9)DOIT(10)DOIT(11)DOIT(12)DOIT(13)DOIT(14)DOIT(15)
 			DOIT(16)DOIT(17)DOIT(18)DOIT(19)DOIT(20)DOIT(21)DOIT(22)DOIT(23)DOIT(24)DOIT(25)DOIT(26)DOIT(27)DOIT(28)DOIT(29)DOIT(30)DOIT(31)
 			DOIT(32)DOIT(33)DOIT(34)DOIT(35)DOIT(36)DOIT(37)DOIT(38)DOIT(39)DOIT(40)DOIT(41)DOIT(42)DOIT(43)DOIT(44)DOIT(45)DOIT(46)DOIT(47)
@@ -254,7 +314,7 @@ namespace
 			DOIT(240)DOIT(241)DOIT(242)DOIT(243)DOIT(244)DOIT(245)DOIT(246)DOIT(247)DOIT(248)DOIT(249)DOIT(250)DOIT(251)DOIT(252)DOIT(253)DOIT(254)DOIT(255)
 		}
 
-		return (uint8_t)barge;
+		return (uint8_t)retval;
 	}
 }
 
@@ -362,8 +422,7 @@ namespace LakeSnes
 
 	uint8_t Cpu::cpu_read(Addr24 addr)
 	{
-		auto addrl = (addr.bank<<16)+addr.addr;
-		return cpu_read(addrl);
+		return cpu_access_new<1,MemOp::Read>(config.snes,addr.bank,addr.addr,0,false,false);
 	}
 
 	uint16_t Cpu::cpu_readWord(Addr24 addr, bool intCheck)
@@ -375,15 +434,15 @@ namespace LakeSnes
 
 	void Cpu::cpu_write(Addr24 addr, uint8_t val)
 	{
-		auto addrl = (addr.bank<<16)+addr.addr;
-		return cpu_write(addrl,val);
+		cpu_access_new<1,MemOp::Write>(config.snes,addr.bank,addr.addr,val,false,false);
 	}
 
 	void Cpu::cpu_writeWord(Addr24 addr, uint16_t value, bool reversed, bool intCheck)
 	{
-		auto addrl = (addr.bank<<16)+addr.addr;
-		auto addrh = ((addr.bank<<16)+addr.addr+1)&0xFFFFFF;
-		cpu_writeWord(addrl,addrh,value,reversed,intCheck);
+		//auto addrl = (addr.bank<<16)+addr.addr;
+		//auto addrh = ((addr.bank<<16)+addr.addr+1)&0xFFFFFF;
+		//cpu_writeWord(addrl,addrh,value,reversed,intCheck);
+		cpu_access_new<2,MemOp::Write>(config.snes,addr.bank,addr.addr,value,reversed,intCheck);
 	}
 
 	void Cpu::cpu_write(uint32_t adr, uint8_t val) {
@@ -409,7 +468,7 @@ namespace LakeSnes
 	uint8_t Cpu::cpu_readOpcode()
 	{
 		intDelay = false;
-		return cpu_access_new<1,MemOp::Fetch>(config.snes,k,pc++,0);
+		return cpu_access_new<1,MemOp::Fetch>(config.snes,k,pc++,0,false,false);
 	}
 
 	uint16_t Cpu::cpu_readOpcodeWord(bool intCheck) {
