@@ -1,6 +1,7 @@
 #include "input.h"
 #include "snes.h"
 #include "statehandler.h"
+#include "global.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,42 +11,40 @@
 namespace LakeSnes
 {
 
-	Input* input_init(Snes* snes) {
-		Input* input = (Input*)malloc(sizeof(Input));
-		input->snes = snes;
+	void input_init(int pidx)
+	{
 		// TODO: handle (where?)
-		input->type = 1;
-		input->currentState = 0;
+		input[pidx].pidx = pidx;
+		input[pidx].type = 1;
+		input[pidx].currentState = 0;
 		// TODO: handle I/O line (and latching of PPU)
-		return input;
 	}
 
-	void input_free(Input* input) {
-		free(input);
+	void input_free(int pidx) {
 	}
 
-	void input_reset(Input* input) {
-		input->latchLine = false;
-		input->latchedState = 0;
+	void input_reset(int pidx) {
+		input[pidx].latchLine = false;
+		input[pidx].latchedState = 0;
 	}
 
-	void input_handleState(Input* input, StateHandler* sh) {
+	void input_handleState(int pidx, StateHandler* sh) {
 		// TODO: handle types (switch type on state load?)
-		sh_handleBytes(sh, &input->type, NULL);
-		sh_handleBools(sh, &input->latchLine, NULL);
-		sh_handleWords(sh, &input->currentState, &input->latchedState, NULL);
+		sh_handleBytes(sh, &input[pidx].type, NULL);
+		sh_handleBools(sh, &input[pidx].latchLine, NULL);
+		sh_handleWords(sh, &input[pidx].currentState, &input[pidx].latchedState, NULL);
 	}
 
-	void input_latch(Input* input, bool value) {
-		input->latchLine = value;
-		if(input->latchLine) input->latchedState = input->currentState;
+	void input_latch(int pidx, bool value) {
+		input[pidx].latchLine = value;
+		if(input[pidx].latchLine) input[pidx].latchedState = input[pidx].currentState;
 	}
 
-	uint8_t input_read(Input* input) {
-		if(input->latchLine) input->latchedState = input->currentState;
-		uint8_t ret = input->latchedState & 1;
-		input->latchedState >>= 1;
-		input->latchedState |= 0x8000;
+	uint8_t input_read(int pidx) {
+		if(input[pidx].latchLine) input[pidx].latchedState = input[pidx].currentState;
+		uint8_t ret = input[pidx].latchedState & 1;
+		input[pidx].latchedState >>= 1;
+		input[pidx].latchedState |= 0x8000;
 		return ret;
 	}
 

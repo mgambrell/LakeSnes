@@ -7,8 +7,9 @@ namespace LakeSnes
 	struct Snes;
 	struct StateHandler;
 
-	struct Input {
-		Snes* snes;
+	struct Input
+	{
+		uint8_t pidx;
 		uint8_t type;
 		// latchline
 		bool latchLine;
@@ -17,11 +18,11 @@ namespace LakeSnes
 		uint16_t latchedState;
 	};
 
-	Input* input_init(Snes* snes);
-	void input_free(Input* input);
-	void input_reset(Input* input);
-	void input_handleState(Input* input, StateHandler* sh);
-	void input_latch(Input* input, bool value);
-	uint8_t input_read(Input* input);
+	void input_init(int pidx);
+	void input_free(int pidx);
+	void input_reset(int pidx);
+	void input_handleState(int pidx, StateHandler* sh);
+	void input_latch(int pidx, bool value);
+	uint8_t input_read(int pidx);
 
 }

@@ -135,15 +135,15 @@ namespace LakeSnes
 		// set key in controller
 		if(playerNumber == 1) {
 			if(pressed) {
-				snes->input1->currentState |= 1 << button;
+				snes->myinput[0].currentState |= 1 << button;
 			} else {
-				snes->input1->currentState &= ~(1 << button);
+				snes->myinput[1].currentState &= ~(1 << button);
 			}
 		} else {
-			if(playerNumber) {
-				snes->input2->currentState |= 1 << button;
+			if(pressed) {
+				snes->myinput[0].currentState |= 1 << button;
 			} else {
-				snes->input2->currentState &= ~(1 << button);
+				snes->myinput[1].currentState &= ~(1 << button);
 			}
 		}
 	}

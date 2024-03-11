@@ -1,12 +1,14 @@
 #pragma once
 
 #include <stdint.h>
+#include <array>
 
 #include "cpu.h"
 #include "dma.h"
 #include "apu.h"
 #include "ppu.h"
 #include "cart.h"
+#include "input.h"
 
 namespace LakeSnes
 {
@@ -27,8 +29,7 @@ namespace LakeSnes
     Cart mycart;
     bool palTiming;
     // input
-    Input* input1;
-    Input* input2;
+    std::array<Input,2> myinput;
     // ram
     uint8_t ram[0x20000];
     uint32_t ramAdr;

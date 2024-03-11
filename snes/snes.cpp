@@ -38,8 +38,8 @@ namespace LakeSnes
 		apu_init();
 		ppu_init();
 		cart_init();
-		snes->input1 = input_init(snes);
-		snes->input2 = input_init(snes);
+		input_init(0);
+		input_init(1);
 		snes->palTiming = false;
 		build_accesstime(true);
 		return snes;
@@ -48,8 +48,8 @@ namespace LakeSnes
 	void snes_free() {
 		ppu_free();
 		cart_free();
-		input_free(snes->input1);
-		input_free(snes->input2);
+		input_free(0);
+		input_free(1);
 		free_accesstime();
 	}
 
@@ -58,8 +58,8 @@ namespace LakeSnes
 		apu_reset();
 		dma_reset();
 		ppu_reset();
-		input_reset(snes->input1);
-		input_reset(snes->input2);
+		input_reset(0);
+		input_reset(1);
 		cart_reset();
 		if(hard) memset(snes->ram, 0, sizeof(snes->ram));
 		snes->ramAdr = 0;
@@ -109,8 +109,8 @@ namespace LakeSnes
 		dma_handleState(sh);
 		ppu_handleState(sh);
 		apu_handleState(sh);
-		input_handleState(snes->input1, sh);
-		input_handleState(snes->input2, sh);
+		input_handleState(0, sh);
+		input_handleState(1, sh);
 		cart_handleState(sh);
 	}
 
@@ -254,15 +254,15 @@ namespace LakeSnes
 	static void snes_doAutoJoypad() {
 		memset(snes->portAutoRead, 0, sizeof(snes->portAutoRead));
 		// latch controllers
-		input_latch(snes->input1, true);
-		input_latch(snes->input2, true);
-		input_latch(snes->input1, false);
-		input_latch(snes->input2, false);
+		input_latch(0, true);
+		input_latch(1, true);
+		input_latch(0, false);
+		input_latch(1, false);
 		for(int i = 0; i < 16; i++) {
-			uint8_t val = input_read(snes->input1);
+			uint8_t val = input_read(0);
 			snes->portAutoRead[0] |= ((val & 1) << (15 - i));
 			snes->portAutoRead[2] |= (((val >> 1) & 1) << (15 - i));
-			val = input_read(snes->input2);
+			val = input_read(1);
 			snes->portAutoRead[1] |= ((val & 1) << (15 - i));
 			snes->portAutoRead[3] |= (((val >> 1) & 1) << (15 - i));
 		}
@@ -472,10 +472,10 @@ namespace LakeSnes
 				return snes_readBBus(adr & 0xff); // B-bus
 			}
 			if(adr == 0x4016) {
-				return input_read(snes->input1) | (snes->openBus & 0xfc);
+				return input_read(0) | (snes->openBus & 0xfc);
 			}
 			if(adr == 0x4017) {
-				return input_read(snes->input2) | (snes->openBus & 0xe0) | 0x1c;
+				return input_read(1) | (snes->openBus & 0xe0) | 0x1c;
 			}
 			if(adr >= 0x4200 && adr < 0x4220) {
 				return snes_readReg(adr); // internal registers
@@ -503,8 +503,8 @@ namespace LakeSnes
 				snes_writeBBus(adr & 0xff, val); // B-bus
 			}
 			if(adr == 0x4016) {
-				input_latch(snes->input1, val & 1); // input latch
-				input_latch(snes->input2, val & 1);
+				input_latch(0, val & 1); // input latch
+				input_latch(1, val & 1);
 			}
 			if(adr >= 0x4200 && adr < 0x4220) {
 				snes_writeReg(adr, val); // internal registers
