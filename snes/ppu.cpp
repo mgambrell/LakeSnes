@@ -1,6 +1,7 @@
 #include "ppu.h"
 #include "snes.h"
 #include "statehandler.h"
+#include "global.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -74,28 +75,24 @@ namespace LakeSnes
 	static uint8_t bg_prio_buf[4];
 	static bool bg_window_state[6]; // 0-3 (bg) 4 (spr) 5 (colorwind)
 
-	static void ppu_handlePixel(Ppu* ppu, int x, int y);
-	static int ppu_getPixel(Ppu* ppu, int x, int y, bool sub, int* r, int* g, int* b);
-	static uint16_t ppu_getOffsetValue(Ppu* ppu, int col, int row);
-	static inline void ppu_getPixelForBgLayer(Ppu* ppu, int x, int y, int layer);
-	static void ppu_handleOPT(Ppu* ppu, int layer, int* lx, int* ly);
-	static void ppu_calculateMode7Starts(Ppu* ppu, int y);
-	static int ppu_getPixelForMode7(Ppu* ppu, int x, int layer, bool priority);
-	static bool ppu_getWindowState(Ppu* ppu, int layer, int x);
-	static void ppu_evaluateSprites(Ppu* ppu, int line);
-	static uint16_t ppu_getVramRemap(Ppu* ppu);
+	static void ppu_handlePixel(int x, int y);
+	static int ppu_getPixel(int x, int y, bool sub, int* r, int* g, int* b);
+	static uint16_t ppu_getOffsetValue(int col, int row);
+	static inline void ppu_getPixelForBgLayer(int x, int y, int layer);
+	static void ppu_handleOPT(int layer, int* lx, int* ly);
+	static void ppu_calculateMode7Starts(int y);
+	static int ppu_getPixelForMode7(int x, int layer, bool priority);
+	static bool ppu_getWindowState(int layer, int x);
+	static void ppu_evaluateSprites(int line);
+	static uint16_t ppu_getVramRemap();
 
-	Ppu* ppu_init(Snes* snes) {
-		Ppu* ppu = (Ppu*)malloc(sizeof(Ppu));
-		ppu->snes = snes;
-		return ppu;
+	void ppu_init() {
 	}
 
-	void ppu_free(Ppu* ppu) {
-		free(ppu);
+	void ppu_free() {
 	}
 
-	void ppu_reset(Ppu* ppu) {
+	void ppu_reset() {
 		// create brightness and color clamp LUTs (rendering opti)
 		for (int i = 0; i < 0x10; i++) {
 			bright_lut[i] = (i * 0x10000) / 15;
@@ -210,7 +207,7 @@ namespace LakeSnes
 		memset(ppu->pixelBuffer, 0, sizeof(ppu->pixelBuffer));
 	}
 
-	void ppu_handleState(Ppu* ppu, StateHandler* sh) {
+	void ppu_handleState(StateHandler* sh) {
 		sh_handleBools(sh,
 			&ppu->vramIncrementOnHigh, &ppu->cgramSecondWrite, &ppu->oamInHigh, &ppu->oamInHighWritten, &ppu->oamSecondWrite,
 			&ppu->objPriority, &ppu->timeOver, &ppu->rangeOver, &ppu->objInterlace, &ppu->m7largeField, &ppu->m7charFill,
@@ -266,13 +263,13 @@ namespace LakeSnes
 		sh_handleByteArray(sh, ppu->objPriorityBuffer, 256);
 	}
 
-	bool ppu_checkOverscan(Ppu* ppu) {
+	bool ppu_checkOverscan() {
 		// called at (0,225)
 		ppu->frameOverscan = ppu->overscan; // set if we have a overscan-frame
 		return ppu->frameOverscan;
 	}
 
-	void ppu_handleVblank(Ppu* ppu) {
+	void ppu_handleVblank() {
 		// called either right after ppu_checkOverscan at (0,225), or at (0,240)
 		if(!ppu->forcedBlank) {
 			ppu->oamAdr = ppu->oamAdrWritten;
@@ -282,7 +279,7 @@ namespace LakeSnes
 		ppu->frameInterlace = ppu->interlace; // set if we have a interlaced frame
 	}
 
-	void ppu_handleFrameStart(Ppu* ppu) {
+	void ppu_handleFrameStart() {
 		// called at (0, 0)
 		ppu->mosaicStartLine = 1;
 		ppu->rangeOver = false;
@@ -290,36 +287,36 @@ namespace LakeSnes
 		ppu->evenFrame = !ppu->evenFrame;
 	}
 
-	void ppu_runLine(Ppu* ppu, int line) {
+	void ppu_runLine(int line) {
 		// called for lines 1-224/239
 		// evaluate sprites
 		memset(ppu->objPixelBuffer, 0, sizeof(ppu->objPixelBuffer));
-		if(!ppu->forcedBlank) ppu_evaluateSprites(ppu, line - 1);
+		if(!ppu->forcedBlank) ppu_evaluateSprites(line - 1);
 		// actual line
-		if(ppu->mode == 7) ppu_calculateMode7Starts(ppu, line);
+		if(ppu->mode == 7) ppu_calculateMode7Starts(line);
 		layerCache[0] = layerCache[1] = layerCache[2] = layerCache[3] = -1;
 		for(int x = 0; x < 256; x+=4) {
-			ppu_handlePixel(ppu, x + 0, line);
-			ppu_handlePixel(ppu, x + 1, line);
-			ppu_handlePixel(ppu, x + 2, line);
-			ppu_handlePixel(ppu, x + 3, line);
+			ppu_handlePixel(x + 0, line);
+			ppu_handlePixel(x + 1, line);
+			ppu_handlePixel(x + 2, line);
+			ppu_handlePixel(x + 3, line);
 		}
 	}
 
-	static void ppu_handlePixel(Ppu* ppu, int x, int y) {
+	static void ppu_handlePixel(int x, int y) {
 		int r = 0, r2 = 0;
 		int g = 0, g2 = 0;
 		int b = 0, b2 = 0;
 		bool halfColor = ppu->halfColor;
 		// cache for speed-up
-		bg_window_state[0] = ppu_getWindowState(ppu, 0, x);
-		bg_window_state[1] = ppu_getWindowState(ppu, 1, x);
-		bg_window_state[2] = ppu_getWindowState(ppu, 2, x);
-		bg_window_state[3] = ppu_getWindowState(ppu, 3, x);
-		bg_window_state[4] = ppu_getWindowState(ppu, 4, x);
-		bg_window_state[5] = ppu_getWindowState(ppu, 5, x);
+		bg_window_state[0] = ppu_getWindowState(0, x);
+		bg_window_state[1] = ppu_getWindowState(1, x);
+		bg_window_state[2] = ppu_getWindowState(2, x);
+		bg_window_state[3] = ppu_getWindowState(3, x);
+		bg_window_state[4] = ppu_getWindowState(4, x);
+		bg_window_state[5] = ppu_getWindowState(5, x);
 		if(!ppu->forcedBlank) {
-			int mainLayer = ppu_getPixel(ppu, x, y, false, &r, &g, &b);
+			int mainLayer = ppu_getPixel(x, y, false, &r, &g, &b);
 			bool colorWindowState = bg_window_state[5];
 			if(
 				ppu->clipMode == 3 ||
@@ -338,7 +335,7 @@ namespace LakeSnes
 				(ppu->preventMathMode == 1 && !colorWindowState)
 			);
 			if((mathEnabled && ppu->addSubscreen) || ppu->pseudoHires || ppu->mode == 5 || ppu->mode == 6) {
-				secondLayer = ppu_getPixel(ppu, x, y, true, &r2, &g2, &b2);
+				secondLayer = ppu_getPixel(x, y, true, &r2, &g2, &b2);
 			}
 			// TODO: subscreen pixels can be clipped to black as well
 			// TODO: math for subscreen pixels (add/sub sub to main, in hires mode)
@@ -388,7 +385,7 @@ namespace LakeSnes
 							((((r << 3) | (r >> 2)) * bright_now) >> 16) << 16;
 	}
 
-	static int ppu_getPixel(Ppu* ppu, int x, int y, bool sub, int* r, int* g, int* b) {
+	static int ppu_getPixel(int x, int y, bool sub, int* r, int* g, int* b) {
 		// figure out which color is on this location on main- or subscreen, sets it in r, g, b
 		// returns which layer it is: 0-3 for bg layer, 4 or 6 for sprites (depending on palette), 5 for backdrop
 		int actMode = ppu->mode == 1 && ppu->bg3priority ? 8 : ppu->mode;
@@ -418,7 +415,7 @@ namespace LakeSnes
 						ly -= (ly - ppu->mosaicStartLine) % ppu->mosaicSize;
 					}
 					if(ppu->mode == 7) {
-						pixel = ppu_getPixelForMode7(ppu, lx, curLayer, curPriority);
+						pixel = ppu_getPixelForMode7(lx, curLayer, curPriority);
 					} else {
 						lx += ppu->bgLayer[curLayer].hScroll;
 						if(ppu->mode == 5 || ppu->mode == 6) {
@@ -431,10 +428,10 @@ namespace LakeSnes
 						}
 						ly += ppu->bgLayer[curLayer].vScroll;
 						if(ppu->mode == 2 || ppu->mode == 4 || ppu->mode == 6) {
-							ppu_handleOPT(ppu, curLayer, &lx, &ly);
+							ppu_handleOPT(curLayer, &lx, &ly);
 						}
 						if (lx != layerCache[curLayer]) {
-							ppu_getPixelForBgLayer(ppu, lx & 0x3ff, ly & 0x3ff, curLayer);
+							ppu_getPixelForBgLayer(lx & 0x3ff, ly & 0x3ff, curLayer);
 							layerCache[curLayer] = lx;
 						}
 						pixel = (bg_prio_buf[curLayer] == curPriority) ? bg_pixel_buf[curLayer] : 0;
@@ -464,7 +461,7 @@ namespace LakeSnes
 		return layer;
 	}
 
-	static void ppu_handleOPT(Ppu* ppu, int layer, int* lx, int* ly) {
+	static void ppu_handleOPT(int layer, int* lx, int* ly) {
 		int x = *lx;
 		int y = *ly;
 		int column = 0;
@@ -476,7 +473,7 @@ namespace LakeSnes
 		if(column > 0) {
 			// fetch offset values from layer 3 tilemap
 			int valid = layer == 0 ? 0x2000 : 0x4000;
-			uint16_t hOffset = ppu_getOffsetValue(ppu, column - 1, 0);
+			uint16_t hOffset = ppu_getOffsetValue(column - 1, 0);
 			uint16_t vOffset = 0;
 			if(ppu->mode == 4) {
 				if(hOffset & 0x8000) {
@@ -484,7 +481,7 @@ namespace LakeSnes
 					hOffset = 0;
 				}
 			} else {
-				vOffset = ppu_getOffsetValue(ppu, column - 1, 1);
+				vOffset = ppu_getOffsetValue(column - 1, 1);
 			}
 			if(ppu->mode == 6) {
 				// TODO: not sure if correct
@@ -497,7 +494,7 @@ namespace LakeSnes
 		}
 	}
 
-	static uint16_t ppu_getOffsetValue(Ppu* ppu, int col, int row) {
+	static uint16_t ppu_getOffsetValue(int col, int row) {
 		int x = col * 8 + ppu->bgLayer[2].hScroll;
 		int y = row * 8 + ppu->bgLayer[2].vScroll;
 		int tileBits = ppu->bgLayer[2].bigTiles ? 4 : 3;
@@ -508,7 +505,7 @@ namespace LakeSnes
 		return ppu->vram[tilemapAdr & 0x7fff];
 	}
 
-	static inline void ppu_getPixelForBgLayer(Ppu* ppu, int x, int y, int layer) {
+	static inline void ppu_getPixelForBgLayer(int x, int y, int layer) {
 		// figure out address of tilemap word and read it
 		bool wideTiles = ppu->bgLayer[layer].bigTiles || ppu->mode == 5 || ppu->mode == 6;
 		int tileBitsX = wideTiles ? 4 : 3;
@@ -579,7 +576,7 @@ namespace LakeSnes
 		bg_prio_buf[layer] = tilePrio;
 	}
 
-	static void ppu_calculateMode7Starts(Ppu* ppu, int y) {
+	static void ppu_calculateMode7Starts(int y) {
 		// expand 13-bit values to signed values
 		int hScroll = ((int16_t) (ppu->m7matrix[6] << 3)) >> 3;
 		int vScroll = ((int16_t) (ppu->m7matrix[7] << 3)) >> 3;
@@ -608,7 +605,7 @@ namespace LakeSnes
 		);
 	}
 
-	static int ppu_getPixelForMode7(Ppu* ppu, int x, int layer, bool priority) {
+	static int ppu_getPixelForMode7(int x, int layer, bool priority) {
 		uint8_t rx = ppu->m7xFlip ? 255 - x : x;
 		int xPos = (ppu->m7startX + ppu->m7matrix[0] * rx) >> 8;
 		int yPos = (ppu->m7startY + ppu->m7matrix[2] * rx) >> 8;
@@ -625,7 +622,7 @@ namespace LakeSnes
 		return pixel;
 	}
 
-	static bool ppu_getWindowState(Ppu* ppu, int layer, int x) {
+	static bool ppu_getWindowState(int layer, int x) {
 		if(!ppu->windowLayer[layer].window1enabled && !ppu->windowLayer[layer].window2enabled) {
 			return false;
 		}
@@ -650,7 +647,7 @@ namespace LakeSnes
 		return false;
 	}
 
-	static void ppu_evaluateSprites(Ppu* ppu, int line) {
+	static void ppu_evaluateSprites(int line) {
 		// TODO: rectangular sprites, wierdness with sprites at -256
 		uint8_t index = ppu->objPriority ? (ppu->oamAdr & 0xfe) : 0;
 		int spritesFound = 0;
@@ -735,7 +732,7 @@ namespace LakeSnes
 		}
 	}
 
-	static uint16_t ppu_getVramRemap(Ppu* ppu) {
+	static uint16_t ppu_getVramRemap() {
 		uint16_t adr = ppu->vramPointer;
 		switch(ppu->vramRemapMode) {
 			case 0: return adr;
@@ -746,13 +743,13 @@ namespace LakeSnes
 		return adr;
 	}
 
-	void ppu_latchHV(Ppu* ppu) {
-		ppu->hCount = ppu->snes->hPos / 4;
-		ppu->vCount = ppu->snes->vPos;
+	void ppu_latchHV() {
+		ppu->hCount = snes->hPos / 4;
+		ppu->vCount = snes->vPos;
 		ppu->countersLatched = true;
 	}
 
-	uint8_t ppu_read(Ppu* ppu, uint8_t adr) {
+	uint8_t ppu_read(uint8_t adr) {
 		switch(adr) {
 			case 0x04: case 0x14: case 0x24:
 			case 0x05: case 0x15: case 0x25:
@@ -770,10 +767,10 @@ namespace LakeSnes
 				return ppu->ppu1openBus;
 			}
 			case 0x37: {
-				if(ppu->snes->ppuLatch) {
-					ppu_latchHV(ppu);
+				if(snes->ppuLatch) {
+					ppu_latchHV();
 				}
-				return ppu->snes->openBus;
+				return snes->openBus;
 			}
 			case 0x38: {
 				uint8_t ret = 0;
@@ -798,7 +795,7 @@ namespace LakeSnes
 			case 0x39: {
 				uint16_t val = ppu->vramReadBuffer;
 				if(!ppu->vramIncrementOnHigh) {
-					ppu->vramReadBuffer = ppu->vram[ppu_getVramRemap(ppu) & 0x7fff];
+					ppu->vramReadBuffer = ppu->vram[ppu_getVramRemap() & 0x7fff];
 					ppu->vramPointer += ppu->vramIncrement;
 				}
 				ppu->ppu1openBus = val & 0xff;
@@ -807,7 +804,7 @@ namespace LakeSnes
 			case 0x3a: {
 				uint16_t val = ppu->vramReadBuffer;
 				if(ppu->vramIncrementOnHigh) {
-					ppu->vramReadBuffer = ppu->vram[ppu_getVramRemap(ppu) & 0x7fff];
+					ppu->vramReadBuffer = ppu->vram[ppu_getVramRemap() & 0x7fff];
 					ppu->vramPointer += ppu->vramIncrement;
 				}
 				ppu->ppu1openBus = val >> 8;
@@ -856,11 +853,11 @@ namespace LakeSnes
 			}
 			case 0x3f: {
 				uint8_t val = 0x3; // ppu2 version (4 bit)
-				val |= ppu->snes->palTiming << 4; // ntsc/pal
+				val |= snes->palTiming << 4; // ntsc/pal
 				val |= ppu->ppu2openBus & 0x20;
 				val |= ppu->countersLatched << 6;
 				val |= ppu->evenFrame << 7;
-				if(ppu->snes->ppuLatch) {
+				if(snes->ppuLatch) {
 					ppu->countersLatched = false;
 					ppu->hCountSecond = false;
 					ppu->vCountSecond = false;
@@ -869,12 +866,12 @@ namespace LakeSnes
 				return val;
 			}
 			default: {
-				return ppu->snes->openBus;
+				return snes->openBus;
 			}
 		}
 	}
 
-	void ppu_write(Ppu* ppu, uint8_t adr, uint8_t val) {
+	void ppu_write(uint8_t adr, uint8_t val) {
 		switch(adr) {
 			case 0x00: {
 				// TODO: oam address reset when written on first line of vblank, (and when forced blank is disabled?)
@@ -938,7 +935,7 @@ namespace LakeSnes
 				ppu->bgLayer[2].mosaicEnabled = val & 0x4;
 				ppu->bgLayer[3].mosaicEnabled = val & 0x8;
 				ppu->mosaicSize = (val >> 4) + 1;
-				ppu->mosaicStartLine = ppu->snes->vPos;
+				ppu->mosaicStartLine = snes->vPos;
 				break;
 			}
 			case 0x07:
@@ -999,23 +996,23 @@ namespace LakeSnes
 			}
 			case 0x16: {
 				ppu->vramPointer = (ppu->vramPointer & 0xff00) | val;
-				ppu->vramReadBuffer = ppu->vram[ppu_getVramRemap(ppu) & 0x7fff];
+				ppu->vramReadBuffer = ppu->vram[ppu_getVramRemap() & 0x7fff];
 				break;
 			}
 			case 0x17: {
 				ppu->vramPointer = (ppu->vramPointer & 0x00ff) | (val << 8);
-				ppu->vramReadBuffer = ppu->vram[ppu_getVramRemap(ppu) & 0x7fff];
+				ppu->vramReadBuffer = ppu->vram[ppu_getVramRemap() & 0x7fff];
 				break;
 			}
 			case 0x18: {
 				// TODO: vram access during rendering (also cgram and oam)
-				uint16_t vramAdr = ppu_getVramRemap(ppu);
+				uint16_t vramAdr = ppu_getVramRemap();
 				ppu->vram[vramAdr & 0x7fff] = (ppu->vram[vramAdr & 0x7fff] & 0xff00) | val;
 				if(!ppu->vramIncrementOnHigh) ppu->vramPointer += ppu->vramIncrement;
 				break;
 			}
 			case 0x19: {
-				uint16_t vramAdr = ppu_getVramRemap(ppu);
+				uint16_t vramAdr = ppu_getVramRemap();
 				ppu->vram[vramAdr & 0x7fff] = (ppu->vram[vramAdr & 0x7fff] & 0x00ff) | (val << 8);
 				if(ppu->vramIncrementOnHigh) ppu->vramPointer += ppu->vramIncrement;
 				break;
@@ -1163,7 +1160,7 @@ namespace LakeSnes
 		}
 	}
 
-	void ppu_putPixels(Ppu* ppu, uint8_t* pixels) {
+	void ppu_putPixels(uint8_t* pixels) {
 		for(int y = 0; y < (ppu->frameOverscan ? 239 : 224); y++) {
 			int dest = y * 2 + (ppu->frameOverscan ? 2 : 16);
 			int y1 = y, y2 = y + 239;

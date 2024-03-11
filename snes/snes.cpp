@@ -36,7 +36,7 @@ namespace LakeSnes
 		cpu_init(&snes_cpuRead, &snes_cpuWrite, &snes_cpuIdle);
 		dma_init();
 		apu_init();
-		snes->ppu = ppu_init(snes);
+		ppu_init();
 		snes->cart = cart_init(snes);
 		snes->input1 = input_init(snes);
 		snes->input2 = input_init(snes);
@@ -46,7 +46,7 @@ namespace LakeSnes
 	}
 
 	void snes_free() {
-		ppu_free(snes->ppu);
+		ppu_free();
 		cart_free(snes->cart);
 		input_free(snes->input1);
 		input_free(snes->input2);
@@ -57,7 +57,7 @@ namespace LakeSnes
 		cpu_reset(hard);
 		apu_reset();
 		dma_reset();
-		ppu_reset(snes->ppu);
+		ppu_reset();
 		input_reset(snes->input1);
 		input_reset(snes->input2);
 		cart_reset(snes->cart);
@@ -107,7 +107,7 @@ namespace LakeSnes
 		// components
 		cpu_handleState(sh);
 		dma_handleState(sh);
-		ppu_handleState(snes->ppu, sh);
+		ppu_handleState(sh);
 		apu_handleState(sh);
 		input_handleState(snes->input1, sh);
 		input_handleState(snes->input2, sh);
@@ -170,18 +170,18 @@ namespace LakeSnes
 				case 512: {
 					snes->nextHoriEvent = 1104;
 					// render the line halfway of the screen for better compatibility
-					if(!snes->inVblank && snes->vPos > 0) ppu_runLine(snes->ppu, snes->vPos);
+					if(!snes->inVblank && snes->vPos > 0) ppu_runLine(snes->vPos);
 				} break;
 				case 1104: {
 					if(!snes->inVblank) dma->hdmaRunRequested = true;
 					if(!snes->palTiming) {
 						// line 240 of odd frame with no interlace is 4 cycles shorter
 						// if((snes->hPos == 1360 && snes->vPos == 240 && !ppu_evenFrame() && !ppu_frameInterlace()) || snes->hPos == 1364) {
-						snes->nextHoriEvent = (snes->vPos == 240 && !snes->ppu->evenFrame && !snes->ppu->frameInterlace) ? 1360 : 1364;
+						snes->nextHoriEvent = (snes->vPos == 240 && !ppu->evenFrame && !ppu->frameInterlace) ? 1360 : 1364;
 					} else {
 						// line 311 of odd frame with interlace is 4 cycles longer
 						// if((snes->hPos == 1364 && (snes->vPos != 311 || ppu_evenFrame() || !ppu_frameInterlace())) || snes->hPos == 1368)
-						snes->nextHoriEvent = (snes->vPos != 311 || snes->ppu->evenFrame || !snes->ppu->frameInterlace) ? 1364 : 1368;
+						snes->nextHoriEvent = (snes->vPos != 311 || ppu->evenFrame || !ppu->frameInterlace) ? 1364 : 1368;
 					}
 				} break;
 				case 1360:
@@ -193,14 +193,14 @@ namespace LakeSnes
 					snes->vPos++;
 					if(!snes->palTiming) {
 						// even interlace frame is 263 lines
-						if((snes->vPos == 262 && (!snes->ppu->frameInterlace || !snes->ppu->evenFrame)) || snes->vPos == 263) {
+						if((snes->vPos == 262 && (!ppu->frameInterlace || !ppu->evenFrame)) || snes->vPos == 263) {
 							if (snes->cart->type == 4) cx4_run();
 							snes->vPos = 0;
 							snes->frames++;
 						}
 				} else {
 						// even interlace frame is 313 lines
-						if((snes->vPos == 312 && (!snes->ppu->frameInterlace || !snes->ppu->evenFrame)) || snes->vPos == 313) {
+						if((snes->vPos == 312 && (!ppu->frameInterlace || !ppu->evenFrame)) || snes->vPos == 313) {
 							if (snes->cart->type == 4) cx4_run();
 							snes->vPos = 0;
 							snes->frames++;
@@ -213,10 +213,10 @@ namespace LakeSnes
 						// end of vblank
 						snes->inVblank = false;
 						snes->inNmi = false;
-						ppu_handleFrameStart(snes->ppu);
+						ppu_handleFrameStart();
 					} else if(snes->vPos == 225) {
 						// ask the ppu if we start vblank now or at vPos 240 (overscan)
-						startingVblank = !ppu_checkOverscan(snes->ppu);
+						startingVblank = !ppu_checkOverscan();
 					} else if(snes->vPos == 240){
 						// if we are not yet in vblank, we had an overscan frame, set startingVblank
 						if(!snes->inVblank) startingVblank = true;
@@ -228,7 +228,7 @@ namespace LakeSnes
 						// Megaman X2 (titlescreen animation), Tales of Phantasia (game demo), Actraiser 2 (fade-in @ bootup)
 				dsp_newFrame();
 						// we are starting vblank
-						ppu_handleVblank(snes->ppu);
+						ppu_handleVblank();
 						snes->inVblank = true;
 						snes->inNmi = true;
 						if(snes->autoJoyRead) {
@@ -270,7 +270,7 @@ namespace LakeSnes
 
 	uint8_t snes_readBBus(uint8_t adr) {
 		if(adr < 0x40) {
-			return ppu_read(snes->ppu, adr);
+			return ppu_read(adr);
 		}
 		if(adr < 0x80) {
 			snes_catchupApu(); // catch up the apu before reading
@@ -286,7 +286,7 @@ namespace LakeSnes
 
 	void snes_writeBBus(uint8_t adr, uint8_t val) {
 		if(adr < 0x40) {
-			ppu_write(snes->ppu, adr, val);
+			ppu_write(adr, val);
 			return;
 		}
 		if(adr < 0x80) {
@@ -390,7 +390,7 @@ namespace LakeSnes
 			case 0x4201: {
 				if(!(val & 0x80) && snes->ppuLatch) {
 					// latch the ppu h/v registers
-					ppu_latchHV(snes->ppu);
+					ppu_latchHV();
 				}
 				snes->ppuLatch = val & 0x80;
 				break;

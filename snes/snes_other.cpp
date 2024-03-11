@@ -150,7 +150,7 @@ namespace LakeSnes
 
 	void snes_setPixels(uint8_t* pixelData) {
 		// size is 4 (rgba) * 512 (w) * 480 (h)
-		ppu_putPixels(snes->ppu, pixelData);
+		ppu_putPixels(pixelData);
 	}
 
 	void snes_setSamples(int16_t* sampleData, int samplesPerFrame) {

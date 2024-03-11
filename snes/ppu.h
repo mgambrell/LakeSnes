@@ -126,17 +126,17 @@ namespace LakeSnes
 		uint8_t pixelBuffer[512 * 4 * 239 * 2];
 	};
 
-	Ppu* ppu_init(Snes* snes);
-	void ppu_free(Ppu* ppu);
-	void ppu_reset(Ppu* ppu);
-	void ppu_handleState(Ppu* ppu, StateHandler* sh);
-	bool ppu_checkOverscan(Ppu* ppu);
-	void ppu_handleVblank(Ppu* ppu);
-	void ppu_handleFrameStart(Ppu* ppu);
-	void ppu_runLine(Ppu* ppu, int line);
-	uint8_t ppu_read(Ppu* ppu, uint8_t adr);
-	void ppu_write(Ppu* ppu, uint8_t adr, uint8_t val);
-	void ppu_latchHV(Ppu* ppu);
-	void ppu_putPixels(Ppu* ppu, uint8_t* pixels);
+	void ppu_init();
+	void ppu_free();
+	void ppu_reset();
+	void ppu_handleState(StateHandler* sh);
+	bool ppu_checkOverscan();
+	void ppu_handleVblank();
+	void ppu_handleFrameStart();
+	void ppu_runLine(int line);
+	uint8_t ppu_read(uint8_t adr);
+	void ppu_write(uint8_t adr, uint8_t val);
+	void ppu_latchHV();
+	void ppu_putPixels(uint8_t* pixels);
 
 }
