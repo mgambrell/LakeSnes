@@ -147,10 +147,9 @@ namespace LakeSnes
 
 	static CX4 cx4;
 
-
-	void cx4_init(void *mem)
+	void cx4_init(Snes *snes)
 	{
-		cx4.snes = (Snes *)mem;
+		cx4.snes = snes;
 
 		cx4.CyclesPerMaster = (double)20000000 / ((cx4.snes->palTiming) ? (1364 * 312 * 50.0) : (1364 * 262 * 60.0));
 
@@ -232,7 +231,7 @@ namespace LakeSnes
 		cx4.prg_cache[cx4.prg_cache_page] = address;
 
 		for (int i = 0; i < CACHE_PAGE; i++) {
-			cx4.prg[cx4.prg_cache_page][i] = (snes_read(address++) << 0) | (snes_read(address++) << 8);
+			cx4.prg[cx4.prg_cache_page][i] = (cx4.snes->snes_read(address++) << 0) | (cx4.snes->snes_read(address++) << 8);
 		}
 
 		cx4.prg_cache_timer += ((cx4.waitstate & 0x07) * CACHE_PAGE) * 2;
@@ -289,8 +288,8 @@ namespace LakeSnes
 
 			if (cx4.bus_timer < 1) {
 				switch (cx4.bus_mode) {
-					case B_READ: cx4.bus_data = snes_read(cx4.bus_address); break;
-					case B_WRITE: snes_write(cx4.bus_address, cx4.bus_data); break;
+					case B_READ: cx4.bus_data = cx4.snes->snes_read(cx4.bus_address); break;
+					case B_WRITE: cx4.snes->snes_write(cx4.bus_address, cx4.bus_data); break;
 				}
 				cx4.bus_mode = B_IDLE;
 				cx4.bus_timer = 0;
@@ -344,7 +343,7 @@ namespace LakeSnes
 		//bprintf(0, _T("dma\tsrc/dest/len:  %x  %x  %x\n"), source, dest, cx4.dma_length);
 	#endif
 		for (int i = 0; i < cx4.dma_length; i++) {
-			snes_write(dest++, snes_read(source++));
+			cx4.snes->snes_write(dest++, cx4.snes->snes_read(source++));
 		}
 
 		cx4.dma_timer = cx4.dma_length * (1 + dest_cyc + source_cyc);
@@ -465,7 +464,7 @@ namespace LakeSnes
 			case 0x7f51:
 				cx4.irqcfg = data & 0x01;
 				if (cx4.irqcfg & IRQ_ACKNOWLEDGE) {
-					cpu_setIrq(false);
+					cx4.snes->mycpu.cpu_setIrq(false);
 					set_I(0);
 				}
 				break;
@@ -817,7 +816,7 @@ namespace LakeSnes
 				cx4.running = 0;
 				if (~cx4.irqcfg & IRQ_ACKNOWLEDGE) {
 					set_I(1);
-					cpu_setIrq(true);
+					cx4.snes->mycpu.cpu_setIrq(true);
 				}
 				break;
 		}

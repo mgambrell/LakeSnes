@@ -7,6 +7,7 @@
 
 namespace LakeSnes
 {
+	class Snes;
 	struct StateHandler;
 
 	struct Timer {
@@ -17,7 +18,28 @@ namespace LakeSnes
 		bool enabled;
 	};
 
-	struct Apu {
+	class Apu
+	{
+	public:
+
+		void apu_init(Snes* snes);
+		void apu_free();
+		void apu_reset();
+		void apu_handleState(StateHandler* sh);
+		void apu_runCycles();
+		uint8_t apu_spcRead(uint16_t adr);
+		void apu_spcWrite(uint16_t adr, uint8_t val);
+		void apu_spcIdle(bool waiting);
+
+	private:
+		void apu_cycle();
+		uint8_t apu_read(uint16_t adr);
+		void apu_write( uint16_t adr, uint8_t val);
+
+	public:
+		struct {
+			Snes* snes;
+		} config;
 		Spc myspc;
 		Dsp mydsp;
 		uint8_t ram[0x10000];
@@ -30,13 +52,5 @@ namespace LakeSnes
 	};
 
 
-	void apu_init();
-	void apu_free();
-	void apu_reset();
-	void apu_handleState(StateHandler* sh);
-	void apu_runCycles();
-	uint8_t apu_spcRead(uint16_t adr);
-	void apu_spcWrite(uint16_t adr, uint8_t val);
-	void apu_spcIdle(bool waiting);
 
 }

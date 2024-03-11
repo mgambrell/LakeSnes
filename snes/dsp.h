@@ -4,9 +4,12 @@
 
 namespace LakeSnes
 {
+	class Apu;
+	class Snes;
 	struct StateHandler;
 
-	struct DspChannel {
+	struct DspChannel
+	{
 		// pitch
 		uint16_t pitch;
 		uint16_t pitchCounter;
@@ -41,7 +44,38 @@ namespace LakeSnes
 		bool echoEnable;
 	};
 
-	struct Dsp {
+	class Dsp
+	{
+	public:
+		void dsp_init(Apu* apu);
+		void dsp_free();
+		void dsp_reset();
+		void dsp_handleState(StateHandler* sh);
+		void dsp_cycle();
+		uint8_t dsp_read(uint8_t adr);
+		void dsp_write(uint8_t adr, uint8_t val);
+		void dsp_getSamples(int16_t* sampleData, int samplesPerFrame);
+		void dsp_newFrame();
+
+	private:
+		bool dsp_checkCounter(int rate);
+		void dsp_cycleChannel(int ch);
+		void dsp_handleEcho();
+		void dsp_handleGain(int ch);
+		void dsp_decodeBrr(int ch);
+		int16_t dsp_getSample(int ch);
+		void dsp_handleNoise();
+
+	private:
+
+		struct
+		{
+			Apu* apu;
+			Snes* snes;
+		} config;
+
+		//MEMBERS:
+	public:
 		// mirror ram
 		uint8_t ram[0x80];
 		// 8 channels
@@ -76,20 +110,14 @@ namespace LakeSnes
 		int16_t firBufferL[8];
 		int16_t firBufferR[8];
 		// sample ring buffer (2048 samples, *2 for stereo)
-		int16_t sampleBuffer[0x800 * 2];
 		uint16_t sampleOffset; // current offset in samplebuffer
 		uint32_t lastFrameBoundary;
+		int16_t sampleBuffer[0x800 * 2];
+
+
 	};
 
-	void dsp_init();
-	void dsp_free();
-	void dsp_reset();
-	void dsp_handleState(StateHandler* sh);
-	void dsp_cycle();
-	uint8_t dsp_read(uint8_t adr);
-	void dsp_write(uint8_t adr, uint8_t val);
-	void dsp_getSamples(int16_t* sampleData, int samplesPerFrame);
-	void dsp_newFrame();
+
 
 
 }

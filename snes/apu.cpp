@@ -3,7 +3,6 @@
 #include "spc.h"
 #include "dsp.h"
 #include "statehandler.h"
-#include "global.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,86 +22,87 @@ namespace LakeSnes
 	static const double apuCyclesPerMaster = (32040 * 32) / (1364 * 262 * 60.0);
 	static const double apuCyclesPerMasterPal = (32040 * 32) / (1364 * 312 * 50.0);
 
-	static void apu_cycle() {
-		if((apu->cycles & 0x1f) == 0) {
+	void Apu::apu_cycle() {
+		if((cycles & 0x1f) == 0) {
 			// every 32 cycles
-			dsp_cycle();
+			mydsp.dsp_cycle();
 		}
 
 		// handle timers
 		for(int i = 0; i < 3; i++) {
-			if(apu->timer[i].cycles == 0) {
-				apu->timer[i].cycles = i == 2 ? 16 : 128;
-				if(apu->timer[i].enabled) {
-					apu->timer[i].divider++;
-					if(apu->timer[i].divider == apu->timer[i].target) {
-						apu->timer[i].divider = 0;
-						apu->timer[i].counter++;
-						apu->timer[i].counter &= 0xf;
+			if(timer[i].cycles == 0) {
+				timer[i].cycles = i == 2 ? 16 : 128;
+				if(timer[i].enabled) {
+					timer[i].divider++;
+					if(timer[i].divider == timer[i].target) {
+						timer[i].divider = 0;
+						timer[i].counter++;
+						timer[i].counter &= 0xf;
 					}
 				}
 			}
-			apu->timer[i].cycles--;
+			timer[i].cycles--;
 		}
 
-		apu->cycles++;
+		cycles++;
 	}
 
-	void apu_init() {
-		spc_init();
-		dsp_init();
+	void Apu::apu_init(Snes* snes) {
+		config.snes = snes;
+		myspc.spc_init(this);
+		mydsp.dsp_init(this);
 	}
 
-	void apu_free() {
-		spc_free();
-		dsp_free();
+	void Apu::apu_free() {
+		myspc.spc_free();
+		mydsp.dsp_free();
 	}
 
-	void apu_reset() {
+	void Apu::apu_reset() {
 		// TODO: hard reset for apu
-		spc_reset(true);
-		dsp_reset();
-		memset(apu->ram, 0, sizeof(apu->ram));
-		apu->dspAdr = 0;
-		apu->romReadable = true;
-		apu->cycles = 0;
-		memset(apu->inPorts, 0, sizeof(apu->inPorts));
-		memset(apu->outPorts, 0, sizeof(apu->outPorts));
+		myspc.spc_reset(true);
+		mydsp.dsp_reset();
+		memset(ram, 0, sizeof(ram));
+		dspAdr = 0;
+		romReadable = true;
+		cycles = 0;
+		memset(inPorts, 0, sizeof(inPorts));
+		memset(outPorts, 0, sizeof(outPorts));
 		for(int i = 0; i < 3; i++) {
-			apu->timer[i].cycles = 0;
-			apu->timer[i].divider = 0;
-			apu->timer[i].target = 0;
-			apu->timer[i].counter = 0;
-			apu->timer[i].enabled = false;
+			timer[i].cycles = 0;
+			timer[i].divider = 0;
+			timer[i].target = 0;
+			timer[i].counter = 0;
+			timer[i].enabled = false;
 		}
 	}
 
-	void apu_handleState( StateHandler* sh) {
-		sh_handleBools(sh, &apu->romReadable, NULL);
+	void Apu::apu_handleState( StateHandler* sh) {
+		sh_handleBools(sh, &romReadable, NULL);
 		sh_handleBytes(sh,
-			&apu->dspAdr, &apu->inPorts[0], &apu->inPorts[1], &apu->inPorts[2], &apu->inPorts[3], &apu->inPorts[4],
-			&apu->inPorts[5], &apu->outPorts[0], &apu->outPorts[1], &apu->outPorts[2], &apu->outPorts[3], NULL
+			&dspAdr, &inPorts[0], &inPorts[1], &inPorts[2], &inPorts[3], &inPorts[4],
+			&inPorts[5], &outPorts[0], &outPorts[1], &outPorts[2], &outPorts[3], NULL
 		);
-		sh_handleLongLongs(sh, &apu->cycles, NULL);
+		sh_handleLongLongs(sh, &cycles, NULL);
 		for(int i = 0; i < 3; i++) {
-			sh_handleBools(sh, &apu->timer[i].enabled, NULL);
-			sh_handleBytes(sh, &apu->timer[i].cycles, &apu->timer[i].divider, &apu->timer[i].target, &apu->timer[i].counter, NULL);
+			sh_handleBools(sh, &timer[i].enabled, NULL);
+			sh_handleBytes(sh, &timer[i].cycles, &timer[i].divider, &timer[i].target, &timer[i].counter, NULL);
 		}
-		sh_handleByteArray(sh, apu->ram, 0x10000);
+		sh_handleByteArray(sh, ram, 0x10000);
 		// components
-		spc_handleState(sh);
-		dsp_handleState( sh);
+		myspc.spc_handleState(sh);
+		mydsp.dsp_handleState( sh);
 	}
 
-	void apu_runCycles() {
-		uint64_t sync_to = (uint64_t)snes->cycles * (snes->palTiming ? apuCyclesPerMasterPal : apuCyclesPerMaster);
+	void Apu::apu_runCycles() {
+		uint64_t sync_to = (uint64_t)config.snes->cycles * (config.snes->palTiming ? apuCyclesPerMasterPal : apuCyclesPerMaster);
 
-		while (apu->cycles < sync_to) {
-			spc_runOpcode();
+		while (cycles < sync_to) {
+			myspc.spc_runOpcode();
 		}
 	}
 
-	uint8_t apu_read( uint16_t adr) {
+	uint8_t Apu::apu_read(uint16_t adr) {
 		switch(adr) {
 			case 0xf0:
 			case 0xf1:
@@ -112,10 +112,10 @@ namespace LakeSnes
 				return 0;
 			}
 			case 0xf2: {
-				return apu->dspAdr;
+				return dspAdr;
 			}
 			case 0xf3: {
-				return dsp_read(apu->dspAdr & 0x7f);
+				return mydsp.dsp_read(dspAdr & 0x7f);
 			}
 			case 0xf4:
 			case 0xf5:
@@ -123,87 +123,88 @@ namespace LakeSnes
 			case 0xf7:
 			case 0xf8:
 			case 0xf9: {
-				return apu->inPorts[adr - 0xf4];
+				return inPorts[adr - 0xf4];
 			}
 			case 0xfd:
 			case 0xfe:
 			case 0xff: {
-				uint8_t ret = apu->timer[adr - 0xfd].counter;
-				apu->timer[adr - 0xfd].counter = 0;
+				uint8_t ret = timer[adr - 0xfd].counter;
+				timer[adr - 0xfd].counter = 0;
 				return ret;
 			}
 		}
-		if(apu->romReadable && adr >= 0xffc0) {
+		if(romReadable && adr >= 0xffc0) {
 			return bootRom[adr - 0xffc0];
 		}
-		return apu->ram[adr];
+		return ram[adr];
 	}
 
-	void apu_write( uint16_t adr, uint8_t val) {
+	void Apu::apu_write(uint16_t adr, uint8_t val) {
 		switch(adr) {
 			case 0xf0: {
 				break; // test register
 			}
 			case 0xf1: {
 				for(int i = 0; i < 3; i++) {
-					if(!apu->timer[i].enabled && (val & (1 << i))) {
-						apu->timer[i].divider = 0;
-						apu->timer[i].counter = 0;
+					if(!timer[i].enabled && (val & (1 << i))) {
+						timer[i].divider = 0;
+						timer[i].counter = 0;
 					}
-					apu->timer[i].enabled = val & (1 << i);
+					timer[i].enabled = val & (1 << i);
 				}
 				if(val & 0x10) {
-					apu->inPorts[0] = 0;
-					apu->inPorts[1] = 0;
+					inPorts[0] = 0;
+					inPorts[1] = 0;
 				}
 				if(val & 0x20) {
-					apu->inPorts[2] = 0;
-					apu->inPorts[3] = 0;
+					inPorts[2] = 0;
+					inPorts[3] = 0;
 				}
-				apu->romReadable = val & 0x80;
+				romReadable = val & 0x80;
 				break;
 			}
 			case 0xf2: {
-				apu->dspAdr = val;
+				dspAdr = val;
 				break;
 			}
 			case 0xf3: {
-				if(apu->dspAdr < 0x80) dsp_write(apu->dspAdr, val);
+				if(dspAdr < 0x80) mydsp.dsp_write(dspAdr, val);
 				break;
 			}
 			case 0xf4:
 			case 0xf5:
 			case 0xf6:
 			case 0xf7: {
-				apu->outPorts[adr - 0xf4] = val;
+				outPorts[adr - 0xf4] = val;
 				break;
 			}
 			case 0xf8:
 			case 0xf9: {
-				apu->inPorts[adr - 0xf4] = val;
+				inPorts[adr - 0xf4] = val;
 				break;
 			}
 			case 0xfa:
 			case 0xfb:
 			case 0xfc: {
-				apu->timer[adr - 0xfa].target = val;
+				timer[adr - 0xfa].target = val;
 				break;
 			}
 		}
-		apu->ram[adr] = val;
+		ram[adr] = val;
 	}
 
-	uint8_t apu_spcRead(uint16_t adr) {
+	uint8_t Apu::apu_spcRead(uint16_t adr) {
 		apu_cycle();
 		return apu_read(adr);
 	}
 
-	void apu_spcWrite(uint16_t adr, uint8_t val) {
+	void Apu::apu_spcWrite(uint16_t adr, uint8_t val) {
 		apu_cycle();
 		apu_write(adr, val);
 	}
 
-	void apu_spcIdle(bool waiting) {
+	void Apu::apu_spcIdle(bool waiting) {
+		(void)waiting;
 		apu_cycle();
 	}
 

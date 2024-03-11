@@ -2,7 +2,6 @@
 #include "snes.h"
 #include "cpu.h"
 #include "statehandler.h"
-#include "global.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,106 +26,103 @@ namespace LakeSnes
 		1, 2, 2, 4, 4, 4, 2, 4
 	};
 
-	static void dma_transferByte(uint16_t aAdr, uint8_t aBank, uint8_t bAdr, bool fromB);
-	static void dma_waitCycle();
-	static void dma_doDma(int cpuCycles);
-	static void dma_initHdma(bool doSync, int cpuCycles);
-	static void dma_doHdma(bool doSync, int cpuCycles);
 
-	void dma_init() {
+
+	void Dma::dma_init(Snes* snes) {
+		this->snes = snes;
 	}
 
-	void dma_free() {
+	void Dma::dma_free() {
 	}
 
-	void dma_reset() {
+	void Dma::dma_reset() {
 		for(int i = 0; i < 8; i++) {
-			dma->channel[i].bAdr = 0xff;
-			dma->channel[i].aAdr = 0xffff;
-			dma->channel[i].aBank = 0xff;
-			dma->channel[i].size = 0xffff;
-			dma->channel[i].indBank = 0xff;
-			dma->channel[i].tableAdr = 0xffff;
-			dma->channel[i].repCount = 0xff;
-			dma->channel[i].unusedByte = 0xff;
-			dma->channel[i].dmaActive = false;
-			dma->channel[i].hdmaActive = false;
-			dma->channel[i].mode = 7;
-			dma->channel[i].fixed = true;
-			dma->channel[i].decrement = true;
-			dma->channel[i].indirect = true;
-			dma->channel[i].fromB = true;
-			dma->channel[i].unusedBit = true;
-			dma->channel[i].doTransfer = false;
-			dma->channel[i].terminated = false;
+			channel[i].bAdr = 0xff;
+			channel[i].aAdr = 0xffff;
+			channel[i].aBank = 0xff;
+			channel[i].size = 0xffff;
+			channel[i].indBank = 0xff;
+			channel[i].tableAdr = 0xffff;
+			channel[i].repCount = 0xff;
+			channel[i].unusedByte = 0xff;
+			channel[i].dmaActive = false;
+			channel[i].hdmaActive = false;
+			channel[i].mode = 7;
+			channel[i].fixed = true;
+			channel[i].decrement = true;
+			channel[i].indirect = true;
+			channel[i].fromB = true;
+			channel[i].unusedBit = true;
+			channel[i].doTransfer = false;
+			channel[i].terminated = false;
 		}
-		dma->dmaState = 0;
-		dma->hdmaInitRequested = false;
-		dma->hdmaRunRequested = false;
+		dmaState = 0;
+		hdmaInitRequested = false;
+		hdmaRunRequested = false;
 	}
 
-	void dma_handleState(StateHandler* sh) {
-		sh_handleBools(sh, &dma->hdmaInitRequested, &dma->hdmaRunRequested, NULL);
-		sh_handleBytes(sh, &dma->dmaState, NULL);
+	void Dma::dma_handleState(StateHandler* sh) {
+		sh_handleBools(sh, &hdmaInitRequested, &hdmaRunRequested, NULL);
+		sh_handleBytes(sh, &dmaState, NULL);
 		for(int i = 0; i < 8; i++) {
 			sh_handleBools(sh,
-				&dma->channel[i].dmaActive, &dma->channel[i].hdmaActive, &dma->channel[i].fixed, &dma->channel[i].decrement,
-				&dma->channel[i].indirect, &dma->channel[i].fromB, &dma->channel[i].unusedBit, &dma->channel[i].doTransfer,
-				&dma->channel[i].terminated, NULL
+				&channel[i].dmaActive, &channel[i].hdmaActive, &channel[i].fixed, &channel[i].decrement,
+				&channel[i].indirect, &channel[i].fromB, &channel[i].unusedBit, &channel[i].doTransfer,
+				&channel[i].terminated, NULL
 			);
 			sh_handleBytes(sh,
-				&dma->channel[i].bAdr, &dma->channel[i].aBank, &dma->channel[i].indBank, &dma->channel[i].repCount,
-				&dma->channel[i].unusedByte, &dma->channel[i].mode, NULL
+				&channel[i].bAdr, &channel[i].aBank, &channel[i].indBank, &channel[i].repCount,
+				&channel[i].unusedByte, &channel[i].mode, NULL
 			);
-			sh_handleWords(sh, &dma->channel[i].aAdr, &dma->channel[i].size, &dma->channel[i].tableAdr, NULL);
+			sh_handleWords(sh, &channel[i].aAdr, &channel[i].size, &channel[i].tableAdr, NULL);
 		}
 	}
 
-	uint8_t dma_read(uint16_t adr) {
+	uint8_t Dma::dma_read(uint16_t adr) {
 		uint8_t c = (adr & 0x70) >> 4;
 		switch(adr & 0xf) {
 			case 0x0: {
-				uint8_t val = dma->channel[c].mode;
-				val |= dma->channel[c].fixed << 3;
-				val |= dma->channel[c].decrement << 4;
-				val |= dma->channel[c].unusedBit << 5;
-				val |= dma->channel[c].indirect << 6;
-				val |= dma->channel[c].fromB << 7;
+				uint8_t val = channel[c].mode;
+				val |= channel[c].fixed << 3;
+				val |= channel[c].decrement << 4;
+				val |= channel[c].unusedBit << 5;
+				val |= channel[c].indirect << 6;
+				val |= channel[c].fromB << 7;
 				return val;
 			}
 			case 0x1: {
-				return dma->channel[c].bAdr;
+				return channel[c].bAdr;
 			}
 			case 0x2: {
-				return dma->channel[c].aAdr & 0xff;
+				return channel[c].aAdr & 0xff;
 			}
 			case 0x3: {
-				return dma->channel[c].aAdr >> 8;
+				return channel[c].aAdr >> 8;
 			}
 			case 0x4: {
-				return dma->channel[c].aBank;
+				return channel[c].aBank;
 			}
 			case 0x5: {
-				return dma->channel[c].size & 0xff;
+				return channel[c].size & 0xff;
 			}
 			case 0x6: {
-				return dma->channel[c].size >> 8;
+				return channel[c].size >> 8;
 			}
 			case 0x7: {
-				return dma->channel[c].indBank;
+				return channel[c].indBank;
 			}
 			case 0x8: {
-				return dma->channel[c].tableAdr & 0xff;
+				return channel[c].tableAdr & 0xff;
 			}
 			case 0x9: {
-				return dma->channel[c].tableAdr >> 8;
+				return channel[c].tableAdr >> 8;
 			}
 			case 0xa: {
-				return dma->channel[c].repCount;
+				return channel[c].repCount;
 			}
 			case 0xb:
 			case 0xf: {
-				return dma->channel[c].unusedByte;
+				return channel[c].unusedByte;
 			}
 			default: {
 				return snes->openBus;
@@ -134,61 +130,61 @@ namespace LakeSnes
 		}
 	}
 
-	void dma_write(uint16_t adr, uint8_t val) {
+	void Dma::dma_write(uint16_t adr, uint8_t val) {
 		uint8_t c = (adr & 0x70) >> 4;
 		switch(adr & 0xf) {
 			case 0x0: {
-				dma->channel[c].mode = val & 0x7;
-				dma->channel[c].fixed = val & 0x8;
-				dma->channel[c].decrement = val & 0x10;
-				dma->channel[c].unusedBit = val & 0x20;
-				dma->channel[c].indirect = val & 0x40;
-				dma->channel[c].fromB = val & 0x80;
+				channel[c].mode = val & 0x7;
+				channel[c].fixed = val & 0x8;
+				channel[c].decrement = val & 0x10;
+				channel[c].unusedBit = val & 0x20;
+				channel[c].indirect = val & 0x40;
+				channel[c].fromB = val & 0x80;
 				break;
 			}
 			case 0x1: {
-				dma->channel[c].bAdr = val;
+				channel[c].bAdr = val;
 				break;
 			}
 			case 0x2: {
-				dma->channel[c].aAdr = (dma->channel[c].aAdr & 0xff00) | val;
+				channel[c].aAdr = (channel[c].aAdr & 0xff00) | val;
 				break;
 			}
 			case 0x3: {
-				dma->channel[c].aAdr = (dma->channel[c].aAdr & 0xff) | (val << 8);
+				channel[c].aAdr = (channel[c].aAdr & 0xff) | (val << 8);
 				break;
 			}
 			case 0x4: {
-				dma->channel[c].aBank = val;
+				channel[c].aBank = val;
 				break;
 			}
 			case 0x5: {
-				dma->channel[c].size = (dma->channel[c].size & 0xff00) | val;
+				channel[c].size = (channel[c].size & 0xff00) | val;
 				break;
 			}
 			case 0x6: {
-				dma->channel[c].size = (dma->channel[c].size & 0xff) | (val << 8);
+				channel[c].size = (channel[c].size & 0xff) | (val << 8);
 				break;
 			}
 			case 0x7: {
-				dma->channel[c].indBank = val;
+				channel[c].indBank = val;
 				break;
 			}
 			case 0x8: {
-				dma->channel[c].tableAdr = (dma->channel[c].tableAdr & 0xff00) | val;
+				channel[c].tableAdr = (channel[c].tableAdr & 0xff00) | val;
 				break;
 			}
 			case 0x9: {
-				dma->channel[c].tableAdr = (dma->channel[c].tableAdr & 0xff) | (val << 8);
+				channel[c].tableAdr = (channel[c].tableAdr & 0xff) | (val << 8);
 				break;
 			}
 			case 0xa: {
-				dma->channel[c].repCount = val;
+				channel[c].repCount = val;
 				break;
 			}
 			case 0xb:
 			case 0xf: {
-				dma->channel[c].unusedByte = val;
+				channel[c].unusedByte = val;
 				break;
 			}
 			default: {
@@ -197,115 +193,115 @@ namespace LakeSnes
 		}
 	}
 
-	static void dma_waitCycle() {
+	void Dma::dma_waitCycle() {
 		// run hdma if requested, no sync (already sycned due to dma)
-		if(dma->hdmaInitRequested) dma_initHdma(false, 0);
-		if(dma->hdmaRunRequested) dma_doHdma(false, 0);
-		snes_runCycles(8);
+		if(hdmaInitRequested) dma_initHdma(false, 0);
+		if(hdmaRunRequested) dma_doHdma(false, 0);
+		snes->snes_runCycles(8);
 	}
 
-	static void dma_doDma(int cpuCycles) {
+	void Dma::dma_doDma(int cpuCycles) {
 		// nmi/irq is delayed by 1 opcode if requested during dma/hdma
 		snes->mycpu.intDelay = true;
 		// align to multiple of 8
-		snes_syncCycles(true, 8);
+		snes->snes_syncCycles(true, 8);
 		// full transfer overhead
 		dma_waitCycle();
 		for(int i = 0; i < 8; i++) {
-			if(!dma->channel[i].dmaActive) continue;
+			if(!channel[i].dmaActive) continue;
 			// do channel i
 			dma_waitCycle(); // overhead per channel
 			int offIndex = 0;
-			while(dma->channel[i].dmaActive) {
+			while(channel[i].dmaActive) {
 				dma_waitCycle();
 				dma_transferByte(
-					dma->channel[i].aAdr, dma->channel[i].aBank,
-					dma->channel[i].bAdr + bAdrOffsets[dma->channel[i].mode][offIndex++], dma->channel[i].fromB
+					channel[i].aAdr, channel[i].aBank,
+					channel[i].bAdr + bAdrOffsets[channel[i].mode][offIndex++], channel[i].fromB
 				);
 				offIndex &= 3;
-				if(!dma->channel[i].fixed) {
-					dma->channel[i].aAdr += dma->channel[i].decrement ? -1 : 1;
+				if(!channel[i].fixed) {
+					channel[i].aAdr += channel[i].decrement ? -1 : 1;
 				}
-				dma->channel[i].size--;
-				if(dma->channel[i].size == 0) {
-					dma->channel[i].dmaActive = false;
+				channel[i].size--;
+				if(channel[i].size == 0) {
+					channel[i].dmaActive = false;
 				}
 			}
 		}
 		// re-align to cpu cycles
-		snes_syncCycles(false, cpuCycles);
+		snes->snes_syncCycles(false, cpuCycles);
 	}
 
-	static void dma_initHdma(bool doSync, int cpuCycles) {
-		dma->hdmaInitRequested = false;
+	void Dma::dma_initHdma(bool doSync, int cpuCycles) {
+		hdmaInitRequested = false;
 		bool hdmaEnabled = false;
 		// check if a channel is enabled, and do reset
 		for(int i = 0; i < 8; i++) {
-			if(dma->channel[i].hdmaActive) hdmaEnabled = true;
-			dma->channel[i].doTransfer = false;
-			dma->channel[i].terminated = false;
+			if(channel[i].hdmaActive) hdmaEnabled = true;
+			channel[i].doTransfer = false;
+			channel[i].terminated = false;
 		}
 		if(!hdmaEnabled) return;
 		// nmi/irq is delayed by 1 opcode if requested during dma/hdma
 		snes->mycpu.intDelay = true;
-		if(doSync) snes_syncCycles(true, 8);
+		if(doSync) snes->snes_syncCycles(true, 8);
 		// full transfer overhead
-		snes_runCycles(8);
+		snes->snes_runCycles(8);
 		for(int i = 0; i < 8; i++) {
-			if(dma->channel[i].hdmaActive) {
+			if(channel[i].hdmaActive) {
 				// terminate any dma
-				dma->channel[i].dmaActive = false;
+				channel[i].dmaActive = false;
 				// load address, repCount, and indirect address if needed
-				snes_runCycles(8);
-				dma->channel[i].tableAdr = dma->channel[i].aAdr;
-				dma->channel[i].repCount = snes_read((dma->channel[i].aBank << 16) | dma->channel[i].tableAdr++);
-				if(dma->channel[i].repCount == 0) dma->channel[i].terminated = true;
-				if(dma->channel[i].indirect) {
-					snes_runCycles(8);
-					dma->channel[i].size = snes_read((dma->channel[i].aBank << 16) | dma->channel[i].tableAdr++);
-					snes_runCycles(8);
-					dma->channel[i].size |= snes_read((dma->channel[i].aBank << 16) | dma->channel[i].tableAdr++) << 8;
+				snes->snes_runCycles(8);
+				channel[i].tableAdr = channel[i].aAdr;
+				channel[i].repCount = snes->snes_read((channel[i].aBank << 16) | channel[i].tableAdr++);
+				if(channel[i].repCount == 0) channel[i].terminated = true;
+				if(channel[i].indirect) {
+					snes->snes_runCycles(8);
+					channel[i].size = snes->snes_read((channel[i].aBank << 16) | channel[i].tableAdr++);
+					snes->snes_runCycles(8);
+					channel[i].size |= snes->snes_read((channel[i].aBank << 16) | channel[i].tableAdr++) << 8;
 				}
-				dma->channel[i].doTransfer = true;
+				channel[i].doTransfer = true;
 			}
 		}
-		if(doSync) snes_syncCycles(false, cpuCycles);
+		if(doSync) snes->snes_syncCycles(false, cpuCycles);
 	}
 
-	static void dma_doHdma(bool doSync, int cpuCycles) {
-		dma->hdmaRunRequested = false;
+	void Dma::dma_doHdma(bool doSync, int cpuCycles) {
+		hdmaRunRequested = false;
 		bool hdmaActive = false;
 		int lastActive = 0;
 		for(int i = 0; i < 8; i++) {
-			if(dma->channel[i].hdmaActive) {
+			if(channel[i].hdmaActive) {
 				hdmaActive = true;
-				if(!dma->channel[i].terminated) lastActive = i;
+				if(!channel[i].terminated) lastActive = i;
 			}
 		}
 		if(!hdmaActive) return;
 		// nmi/irq is delayed by 1 opcode if requested during dma/hdma
 		snes->mycpu.intDelay = true;
-		if(doSync) snes_syncCycles(true, 8);
+		if(doSync) snes->snes_syncCycles(true, 8);
 		// full transfer overhead
-		snes_runCycles(8);
+		snes->snes_runCycles(8);
 		// do all copies
 		for(int i = 0; i < 8; i++) {
 			// terminate any dma
-			if(dma->channel[i].hdmaActive) dma->channel[i].dmaActive = false;
-			if(dma->channel[i].hdmaActive && !dma->channel[i].terminated) {
+			if(channel[i].hdmaActive) channel[i].dmaActive = false;
+			if(channel[i].hdmaActive && !channel[i].terminated) {
 				// do the hdma
-				if(dma->channel[i].doTransfer) {
-					for(int j = 0; j < transferLength[dma->channel[i].mode]; j++) {
-						snes_runCycles(8);
-						if(dma->channel[i].indirect) {
+				if(channel[i].doTransfer) {
+					for(int j = 0; j < transferLength[channel[i].mode]; j++) {
+						snes->snes_runCycles(8);
+						if(channel[i].indirect) {
 							dma_transferByte(
-								dma->channel[i].size++, dma->channel[i].indBank,
-								dma->channel[i].bAdr + bAdrOffsets[dma->channel[i].mode][j], dma->channel[i].fromB
+								channel[i].size++, channel[i].indBank,
+								channel[i].bAdr + bAdrOffsets[channel[i].mode][j], channel[i].fromB
 							);
 						} else {
 							dma_transferByte(
-								dma->channel[i].tableAdr++, dma->channel[i].aBank,
-								dma->channel[i].bAdr + bAdrOffsets[dma->channel[i].mode][j], dma->channel[i].fromB
+								channel[i].tableAdr++, channel[i].aBank,
+								channel[i].bAdr + bAdrOffsets[channel[i].mode][j], channel[i].fromB
 							);
 						}
 					}
@@ -314,34 +310,34 @@ namespace LakeSnes
 		}
 		// do all updates
 		for(int i = 0; i < 8; i++) {
-			if(dma->channel[i].hdmaActive && !dma->channel[i].terminated) {
-				dma->channel[i].repCount--;
-				dma->channel[i].doTransfer = dma->channel[i].repCount & 0x80;
-				snes_runCycles(8);
-				uint8_t newRepCount = snes_read((dma->channel[i].aBank << 16) | dma->channel[i].tableAdr);
-				if((dma->channel[i].repCount & 0x7f) == 0) {
-					dma->channel[i].repCount = newRepCount;
-					dma->channel[i].tableAdr++;
-					if(dma->channel[i].indirect) {
-						if(dma->channel[i].repCount == 0 && i == lastActive) {
+			if(channel[i].hdmaActive && !channel[i].terminated) {
+				channel[i].repCount--;
+				channel[i].doTransfer = channel[i].repCount & 0x80;
+				snes->snes_runCycles(8);
+				uint8_t newRepCount = snes->snes_read((channel[i].aBank << 16) | channel[i].tableAdr);
+				if((channel[i].repCount & 0x7f) == 0) {
+					channel[i].repCount = newRepCount;
+					channel[i].tableAdr++;
+					if(channel[i].indirect) {
+						if(channel[i].repCount == 0 && i == lastActive) {
 							// if this is the last active channel, only fetch high, and use 0 for low
-							dma->channel[i].size = 0;
+							channel[i].size = 0;
 						} else {
-							snes_runCycles(8);
-							dma->channel[i].size = snes_read((dma->channel[i].aBank << 16) | dma->channel[i].tableAdr++);
+							snes->snes_runCycles(8);
+							channel[i].size = snes->snes_read((channel[i].aBank << 16) | channel[i].tableAdr++);
 						}
-						snes_runCycles(8);
-						dma->channel[i].size |= snes_read((dma->channel[i].aBank << 16) | dma->channel[i].tableAdr++) << 8;
+						snes->snes_runCycles(8);
+						channel[i].size |= snes->snes_read((channel[i].aBank << 16) | channel[i].tableAdr++) << 8;
 					}
-					if(dma->channel[i].repCount == 0) dma->channel[i].terminated = true;
-					dma->channel[i].doTransfer = true;
+					if(channel[i].repCount == 0) channel[i].terminated = true;
+					channel[i].doTransfer = true;
 				}
 			}
 		}
-		if(doSync) snes_syncCycles(false, cpuCycles);
+		if(doSync) snes->snes_syncCycles(false, cpuCycles);
 	}
 
-	static void dma_transferByte(uint16_t aAdr, uint8_t aBank, uint8_t bAdr, bool fromB) {
+	void Dma::dma_transferByte(uint16_t aAdr, uint8_t aBank, uint8_t bAdr, bool fromB) {
 		// accessing 0x2180 via b-bus while a-bus accesses ram gives open bus
 		bool validB = !(bAdr == 0x80 && (aBank == 0x7e || aBank == 0x7f || (
 			(aBank < 0x40 || (aBank >= 0x80 && aBank < 0xc0)) && aAdr < 0x2000
@@ -351,40 +347,40 @@ namespace LakeSnes
 			aAdr == 0x420b || aAdr == 0x420c || (aAdr >= 0x4300 && aAdr < 0x4380) || (aAdr >= 0x2100 && aAdr < 0x2200)
 		));
 		if(fromB) {
-			uint8_t val = validB ? snes_readBBus(bAdr) : snes->openBus;
-			if(validA) snes_write((aBank << 16) | aAdr, val);
+			uint8_t val = validB ? snes->snes_readBBus(bAdr) : snes->openBus;
+			if(validA) snes->snes_write((aBank << 16) | aAdr, val);
 		} else {
-			uint8_t val = validA ? snes_read((aBank << 16) | aAdr) : snes->openBus;
-			if(validB) snes_writeBBus(bAdr, val);
+			uint8_t val = validA ? snes->snes_read((aBank << 16) | aAdr) : snes->openBus;
+			if(validB) snes->snes_writeBBus(bAdr, val);
 		}
 	}
 
-	void dma_handleDma(int cpuCycles) {
+	void Dma::dma_handleDma(int cpuCycles) {
 		// if hdma triggered, do it, except if dmastate indicates dma will be done now
 		// (it will be done as part of the dma in that case)
-		if(dma->hdmaInitRequested && dma->dmaState != 2) dma_initHdma(true, cpuCycles);
-		if(dma->hdmaRunRequested && dma->dmaState != 2) dma_doHdma(true, cpuCycles);
-		if(dma->dmaState == 1) {
-			dma->dmaState = 2;
+		if(hdmaInitRequested && dmaState != 2) dma_initHdma(true, cpuCycles);
+		if(hdmaRunRequested && dmaState != 2) dma_doHdma(true, cpuCycles);
+		if(dmaState == 1) {
+			dmaState = 2;
 			return;
 		}
-		if(dma->dmaState == 2) {
+		if(dmaState == 2) {
 			// do dma
 			dma_doDma(cpuCycles);
-			dma->dmaState = 0;
+			dmaState = 0;
 		}
 	}
 
-	void dma_startDma(uint8_t val, bool hdma) {
+	void Dma::dma_startDma(uint8_t val, bool hdma) {
 		for(int i = 0; i < 8; i++) {
 			if(hdma) {
-				dma->channel[i].hdmaActive = val & (1 << i);
+				channel[i].hdmaActive = val & (1 << i);
 			} else {
-				dma->channel[i].dmaActive = val & (1 << i);
+				channel[i].dmaActive = val & (1 << i);
 			}
 		}
 		if(!hdma) {
-			dma->dmaState = val != 0 ? 1 : 0;
+			dmaState = val != 0 ? 1 : 0;
 		}
 	}
 

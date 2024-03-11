@@ -1,6 +1,6 @@
 #include "cpu.h"
 #include "statehandler.h"
-#include "global.h"
+#include "snes.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,94 +9,76 @@
 
 namespace LakeSnes
 {
-	static uint8_t cpu_read(uint32_t adr);
-	static void cpu_write(uint32_t adr, uint8_t val);
-	static void cpu_idle();
-	static void cpu_idleWait();
-	static void cpu_checkInt();
-	static uint8_t cpu_readOpcode();
-	static uint16_t cpu_readOpcodeWord(bool intCheck);
-	static uint8_t cpu_getFlags();
-	static void cpu_setFlags(uint8_t value);
-	static void cpu_setZN(uint16_t value, bool byte);
-	static void cpu_doBranch(bool check);
-	static uint8_t cpu_pullByte();
-	static void cpu_pushByte(uint8_t value);
-	static uint16_t cpu_pullWord(bool intCheck);
-	static void cpu_pushWord(uint16_t value, bool intCheck);
-	static uint16_t cpu_readWord(uint32_t adrl, uint32_t adrh, bool intCheck);
-	static void cpu_writeWord(uint32_t adrl, uint32_t adrh, uint16_t value, bool reversed, bool intCheck);
-	static void cpu_doInterrupt();
-	static void cpu_doOpcode(uint8_t opcode);
 
 	// addressing modes and opcode functions not declared, only used after defintions
 
-	void cpu_init() {
+	void Cpu::cpu_init(Snes* snes) {
+		config.snes = snes;
 	}
 
-	void cpu_reset(bool hard) {
+	void Cpu::cpu_reset(bool hard) {
 		if(hard) {
-			cpu->a = 0;
-			cpu->x = 0;
-			cpu->y = 0;
-			cpu->sp = 0;
-			cpu->pc = 0;
-			cpu->dp = 0;
-			cpu->k = 0;
-			cpu->db = 0;
-			cpu->c = false;
-			cpu->z = false;
-			cpu->v = false;
-			cpu->n = false;
-			cpu->i = false;
-			cpu->d = false;
-			cpu->xf = false;
-			cpu->mf = false;
-			cpu->e = false;
-			cpu->irqWanted = false;
+			a = 0;
+			x = 0;
+			y = 0;
+			sp = 0;
+			pc = 0;
+			dp = 0;
+			k = 0;
+			db = 0;
+			c = false;
+			z = false;
+			v = false;
+			n = false;
+			i = false;
+			d = false;
+			xf = false;
+			mf = false;
+			e = false;
+			irqWanted = false;
 		}
-		cpu->waiting = false;
-		cpu->stopped = false;
-		cpu->nmiWanted = false;
-		cpu->intWanted = false;
-		cpu->intDelay = false;
-		cpu->resetWanted = true;
+		waiting = false;
+		stopped = false;
+		nmiWanted = false;
+		intWanted = false;
+		intDelay = false;
+		resetWanted = true;
 	}
 
-	void cpu_handleState(StateHandler* sh) {
+	void Cpu::cpu_handleState(StateHandler* sh) {
 		sh_handleBools(sh,
-			&cpu->c, &cpu->z, &cpu->v, &cpu->n, &cpu->i, &cpu->d, &cpu->xf, &cpu->mf, &cpu->e, &cpu->waiting, &cpu->stopped,
-			&cpu->irqWanted, &cpu->nmiWanted, &cpu->intWanted, &cpu->intDelay, &cpu->resetWanted, NULL
+			&c, &z, &v, &n, &i, &d, &xf, &mf, &e, &waiting, &stopped,
+			&irqWanted, &nmiWanted, &intWanted, &intDelay, &resetWanted, NULL
 		);
-		sh_handleBytes(sh, &cpu->k, &cpu->db, NULL);
-		sh_handleWords(sh, &cpu->a, &cpu->x, &cpu->y, &cpu->sp, &cpu->pc, &cpu->dp, NULL);
+		sh_handleBytes(sh, &k, &db, NULL);
+		sh_handleWords(sh, &a, &x, &y, &sp, &pc, &dp, NULL);
 	}
 
-	void cpu_runOpcode() {
-		if(cpu->resetWanted) {
-			cpu->resetWanted = false;
+	void Cpu::cpu_runOpcode() {
+		if(resetWanted) {
+			resetWanted = false;
 			// reset: brk/interrupt without writes
-			cpu_read((cpu->k << 16) | cpu->pc);
+			cpu_read((k << 16) | pc);
 			cpu_idle();
-			cpu_read(0x100 | (cpu->sp-- & 0xff));
-			cpu_read(0x100 | (cpu->sp-- & 0xff));
-			cpu_read(0x100 | (cpu->sp-- & 0xff));
-			cpu->sp = (cpu->sp & 0xff) | 0x100;
-			cpu->e = true;
-			cpu->i = true;
-			cpu->d = false;
+			cpu_read(0x100 | (sp-- & 0xff));
+			cpu_read(0x100 | (sp-- & 0xff));
+			cpu_read(0x100 | (sp-- & 0xff));
+			sp = (sp & 0xff) | 0x100;
+			e = true;
+			i = true;
+			d = false;
 			cpu_setFlags(cpu_getFlags()); // updates x and m flags, clears upper half of x and y if needed
-			cpu->k = 0;
-			cpu->pc = cpu_readWord(0xfffc, 0xfffd, false);
+			k = 0;
+			pc = cpu_readWord(0xfffc, 0xfffd, false);
 			return;
 		}
-		if(cpu->stopped) {
+		if(stopped) {
 			cpu_idleWait();
 			return;
 		}
-		if(cpu->waiting) {
-			if(cpu->irqWanted || cpu->nmiWanted) {
-				cpu->waiting = false;
+		if(waiting) {
+			if(irqWanted || nmiWanted) {
+				waiting = false;
 				cpu_idle();
 				cpu_checkInt();
 				cpu_idle();
@@ -107,8 +89,8 @@ namespace LakeSnes
 			}
 		}
 		// not stopped or waiting, execute a opcode or go to interrupt
-		if(cpu->intWanted) {
-			cpu_read((cpu->k << 16) | cpu->pc);
+		if(intWanted) {
+			cpu_read((k << 16) | pc);
 			cpu_doInterrupt();
 		} else {
 			uint8_t opcode = cpu_readOpcode();
@@ -116,132 +98,132 @@ namespace LakeSnes
 		}
 	}
 
-	void cpu_nmi() {
-		cpu->nmiWanted = true;
+	void Cpu::cpu_nmi() {
+		nmiWanted = true;
 	}
 
-	void cpu_setIrq(bool state) {
-		cpu->irqWanted = state;
+	void Cpu::cpu_setIrq(bool state) {
+		irqWanted = state;
 	}
 
-	static uint8_t cpu_read(uint32_t adr) {
-		cpu->intDelay = false;
-		return snes_cpuRead(adr);
+	uint8_t Cpu::cpu_read(uint32_t adr) {
+		intDelay = false;
+		return config.snes->snes_cpuRead(adr);
 	}
 
-	static void cpu_write(uint32_t adr, uint8_t val) {
-		cpu->intDelay = false;
-		snes_cpuWrite(adr, val);
+	void Cpu::cpu_write(uint32_t adr, uint8_t val) {
+		intDelay = false;
+		config.snes->snes_cpuWrite(adr, val);
 	}
 
-	static void cpu_idle() {
-		cpu->intDelay = false;
-		snes_cpuIdle(false);
+	void Cpu::cpu_idle() {
+		intDelay = false;
+		config.snes->snes_cpuIdle(false);
 	}
 
-	static void cpu_idleWait() {
-		cpu->intDelay = false;
-		snes_cpuIdle(true);
+	void Cpu::cpu_idleWait() {
+		intDelay = false;
+		config.snes->snes_cpuIdle(true);
 	}
 
-	static void cpu_checkInt() {
-		cpu->intWanted = (cpu->nmiWanted || (cpu->irqWanted && !cpu->i)) && !cpu->intDelay;
-		cpu->intDelay = false;
+	void Cpu::cpu_checkInt() {
+		intWanted = (nmiWanted || (irqWanted && !i)) && !intDelay;
+		intDelay = false;
 	}
 
-	static uint8_t cpu_readOpcode() {
-		return cpu_read((cpu->k << 16) | cpu->pc++);
+	uint8_t Cpu::cpu_readOpcode() {
+		return cpu_read((k << 16) | pc++);
 	}
 
-	static uint16_t cpu_readOpcodeWord(bool intCheck) {
+	uint16_t Cpu::cpu_readOpcodeWord(bool intCheck) {
 		uint8_t low = cpu_readOpcode();
 		if(intCheck) cpu_checkInt();
 		return low | (cpu_readOpcode() << 8);
 	}
 
-	static uint8_t cpu_getFlags() {
-		uint8_t val = cpu->n << 7;
-		val |= cpu->v << 6;
-		val |= cpu->mf << 5;
-		val |= cpu->xf << 4;
-		val |= cpu->d << 3;
-		val |= cpu->i << 2;
-		val |= cpu->z << 1;
-		val |= cpu->c;
+	uint8_t Cpu::cpu_getFlags() {
+		uint8_t val = n << 7;
+		val |= v << 6;
+		val |= mf << 5;
+		val |= xf << 4;
+		val |= d << 3;
+		val |= i << 2;
+		val |= z << 1;
+		val |= c;
 		return val;
 	}
 
-	static void cpu_setFlags(uint8_t val) {
-		cpu->n = val & 0x80;
-		cpu->v = val & 0x40;
-		cpu->mf = val & 0x20;
-		cpu->xf = val & 0x10;
-		cpu->d = val & 8;
-		cpu->i = val & 4;
-		cpu->z = val & 2;
-		cpu->c = val & 1;
-		if(cpu->e) {
-			cpu->mf = true;
-			cpu->xf = true;
-			cpu->sp = (cpu->sp & 0xff) | 0x100;
+	void Cpu::cpu_setFlags(uint8_t val) {
+		n = val & 0x80;
+		v = val & 0x40;
+		mf = val & 0x20;
+		xf = val & 0x10;
+		d = val & 8;
+		i = val & 4;
+		z = val & 2;
+		c = val & 1;
+		if(e) {
+			mf = true;
+			xf = true;
+			sp = (sp & 0xff) | 0x100;
 		}
-		if(cpu->xf) {
-			cpu->x &= 0xff;
-			cpu->y &= 0xff;
+		if(xf) {
+			x &= 0xff;
+			y &= 0xff;
 		}
 	}
 
-	static void cpu_setZN(uint16_t value, bool byte) {
+	void Cpu::cpu_setZN(uint16_t value, bool byte) {
 		if(byte) {
-			cpu->z = (value & 0xff) == 0;
-			cpu->n = value & 0x80;
+			z = (value & 0xff) == 0;
+			n = value & 0x80;
 		} else {
-			cpu->z = value == 0;
-			cpu->n = value & 0x8000;
+			z = value == 0;
+			n = value & 0x8000;
 		}
 	}
 
-	static void cpu_doBranch(bool check) {
+	void Cpu::cpu_doBranch(bool check) {
 		if(!check) cpu_checkInt();
 		uint8_t value = cpu_readOpcode();
 		if(check) {
 			cpu_checkInt();
 			cpu_idle(); // taken branch: 1 extra cycle
-			cpu->pc += (int8_t) value;
+			pc += (int8_t) value;
 		}
 	}
 
-	static uint8_t cpu_pullByte() {
-		cpu->sp++;
-		if(cpu->e) cpu->sp = (cpu->sp & 0xff) | 0x100;
-		return cpu_read(cpu->sp);
+	uint8_t Cpu::cpu_pullByte() {
+		sp++;
+		if(e) sp = (sp & 0xff) | 0x100;
+		return cpu_read(sp);
 	}
 
-	static void cpu_pushByte(uint8_t value) {
-		cpu_write(cpu->sp, value);
-		cpu->sp--;
-		if(cpu->e) cpu->sp = (cpu->sp & 0xff) | 0x100;
+	void Cpu::cpu_pushByte(uint8_t value) {
+		cpu_write(sp, value);
+		sp--;
+		if(e) sp = (sp & 0xff) | 0x100;
 	}
 
-	static uint16_t cpu_pullWord(bool intCheck) {
+	uint16_t Cpu::cpu_pullWord(bool intCheck) {
 		uint8_t value = cpu_pullByte();
 		if(intCheck) cpu_checkInt();
 		return value | (cpu_pullByte() << 8);
 	}
 
-	static void cpu_pushWord(uint16_t value, bool intCheck) {
+	void Cpu::cpu_pushWord(uint16_t value, bool intCheck) {
 		cpu_pushByte(value >> 8);
 		if(intCheck) cpu_checkInt();
 		cpu_pushByte(value & 0xff);
 	}
 
-	static uint16_t cpu_readWord(uint32_t adrl, uint32_t adrh, bool intCheck) {
+	uint16_t Cpu::cpu_readWord(uint32_t adrl, uint32_t adrh, bool intCheck) {
 		uint8_t value = cpu_read(adrl);
 		if(intCheck) cpu_checkInt();
 		return value | (cpu_read(adrh) << 8);
 	}
 
-	static void cpu_writeWord(uint32_t adrl, uint32_t adrh, uint16_t value, bool reversed, bool intCheck) {
+	void Cpu::cpu_writeWord(uint32_t adrl, uint32_t adrh, uint16_t value, bool reversed, bool intCheck) {
 		if(reversed) {
 			cpu_write(adrh, value >> 8);
 			if(intCheck) cpu_checkInt();
@@ -253,402 +235,402 @@ namespace LakeSnes
 		}
 	}
 
-	static void cpu_doInterrupt() {
+	void Cpu::cpu_doInterrupt() {
 		cpu_idle();
-		cpu_pushByte(cpu->k);
-		cpu_pushWord(cpu->pc, false);
+		cpu_pushByte(k);
+		cpu_pushWord(pc, false);
 		cpu_pushByte(cpu_getFlags());
-		cpu->i = true;
-		cpu->d = false;
-		cpu->k = 0;
-		cpu->intWanted = false;
-		if(cpu->nmiWanted) {
-			cpu->nmiWanted = false;
-			cpu->pc = cpu_readWord(0xffea, 0xffeb, false);
+		i = true;
+		d = false;
+		k = 0;
+		intWanted = false;
+		if(nmiWanted) {
+			nmiWanted = false;
+			pc = cpu_readWord(0xffea, 0xffeb, false);
 		} else { // irq
-			cpu->pc = cpu_readWord(0xffee, 0xffef, false);
+			pc = cpu_readWord(0xffee, 0xffef, false);
 		}
 	}
 
 	// addressing modes
 
-	static void cpu_adrImp() {
+	void Cpu::cpu_adrImp() {
 		// only for 2-cycle implied opcodes
 		cpu_checkInt();
-		if(cpu->intWanted) {
+		if(intWanted) {
 			// if interrupt detected in 2-cycle implied/accumulator opcode,
 			// idle cycle turns into read from pc
-			cpu_read((cpu->k << 16) | cpu->pc);
+			cpu_read((k << 16) | pc);
 		} else {
 			cpu_idle();
 		}
 	}
 
-	static uint32_t cpu_adrImm(uint32_t* low, bool xFlag) {
-		if((xFlag && cpu->xf) || (!xFlag && cpu->mf)) {
-			*low = (cpu->k << 16) | cpu->pc++;
+	uint32_t Cpu::cpu_adrImm(uint32_t* low, bool xFlag) {
+		if((xFlag && xf) || (!xFlag && mf)) {
+			*low = (k << 16) | pc++;
 			return 0;
 		} else {
-			*low = (cpu->k << 16) | cpu->pc++;
-			return (cpu->k << 16) | cpu->pc++;
+			*low = (k << 16) | pc++;
+			return (k << 16) | pc++;
 		}
 	}
 
-	static uint32_t cpu_adrDp(uint32_t* low) {
+	uint32_t Cpu::cpu_adrDp(uint32_t* low) {
 		uint8_t adr = cpu_readOpcode();
-		if(cpu->dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
-		*low = (cpu->dp + adr) & 0xffff;
-		return (cpu->dp + adr + 1) & 0xffff;
+		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
+		*low = (dp + adr) & 0xffff;
+		return (dp + adr + 1) & 0xffff;
 	}
 
-	static uint32_t cpu_adrDpx(uint32_t* low) {
+	uint32_t Cpu::cpu_adrDpx(uint32_t* low) {
 		uint8_t adr = cpu_readOpcode();
-		if(cpu->dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
+		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
 		cpu_idle();
-		*low = (cpu->dp + adr + cpu->x) & 0xffff;
-		return (cpu->dp + adr + cpu->x + 1) & 0xffff;
+		*low = (dp + adr + x) & 0xffff;
+		return (dp + adr + x + 1) & 0xffff;
 	}
 
-	static uint32_t cpu_adrDpy(uint32_t* low) {
+	uint32_t Cpu::cpu_adrDpy(uint32_t* low) {
 		uint8_t adr = cpu_readOpcode();
-		if(cpu->dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
+		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
 		cpu_idle();
-		*low = (cpu->dp + adr + cpu->y) & 0xffff;
-		return (cpu->dp + adr + cpu->y + 1) & 0xffff;
+		*low = (dp + adr + y) & 0xffff;
+		return (dp + adr + y + 1) & 0xffff;
 	}
 
-	static uint32_t cpu_adrIdp(uint32_t* low) {
+	uint32_t Cpu::cpu_adrIdp(uint32_t* low) {
 		uint8_t adr = cpu_readOpcode();
-		if(cpu->dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
-		uint16_t pointer = cpu_readWord((cpu->dp + adr) & 0xffff, (cpu->dp + adr + 1) & 0xffff, false);
-		*low = (cpu->db << 16) + pointer;
-		return ((cpu->db << 16) + pointer + 1) & 0xffffff;
+		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
+		uint16_t pointer = cpu_readWord((dp + adr) & 0xffff, (dp + adr + 1) & 0xffff, false);
+		*low = (db << 16) + pointer;
+		return ((db << 16) + pointer + 1) & 0xffffff;
 	}
 
-	static uint32_t cpu_adrIdx(uint32_t* low) {
+	uint32_t Cpu::cpu_adrIdx(uint32_t* low) {
 		uint8_t adr = cpu_readOpcode();
-		if(cpu->dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
+		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
 		cpu_idle();
-		uint16_t pointer = cpu_readWord((cpu->dp + adr + cpu->x) & 0xffff, (cpu->dp + adr + cpu->x + 1) & 0xffff, false);
-		*low = (cpu->db << 16) + pointer;
-		return ((cpu->db << 16) + pointer + 1) & 0xffffff;
+		uint16_t pointer = cpu_readWord((dp + adr + x) & 0xffff, (dp + adr + x + 1) & 0xffff, false);
+		*low = (db << 16) + pointer;
+		return ((db << 16) + pointer + 1) & 0xffffff;
 	}
 
-	static uint32_t cpu_adrIdy(uint32_t* low, bool write) {
+	uint32_t Cpu::cpu_adrIdy(uint32_t* low, bool write) {
 		uint8_t adr = cpu_readOpcode();
-		if(cpu->dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
-		uint16_t pointer = cpu_readWord((cpu->dp + adr) & 0xffff, (cpu->dp + adr + 1) & 0xffff, false);
+		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
+		uint16_t pointer = cpu_readWord((dp + adr) & 0xffff, (dp + adr + 1) & 0xffff, false);
 		// writing opcode or x = 0 or page crossed: 1 extra cycle
-		if(write || !cpu->xf || ((pointer >> 8) != ((pointer + cpu->y) >> 8))) cpu_idle();
-		*low = ((cpu->db << 16) + pointer + cpu->y) & 0xffffff;
-		return ((cpu->db << 16) + pointer + cpu->y + 1) & 0xffffff;
+		if(write || !xf || ((pointer >> 8) != ((pointer + y) >> 8))) cpu_idle();
+		*low = ((db << 16) + pointer + y) & 0xffffff;
+		return ((db << 16) + pointer + y + 1) & 0xffffff;
 	}
 
-	static uint32_t cpu_adrIdl(uint32_t* low) {
+	uint32_t Cpu::cpu_adrIdl(uint32_t* low) {
 		uint8_t adr = cpu_readOpcode();
-		if(cpu->dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
-		uint32_t pointer = cpu_readWord((cpu->dp + adr) & 0xffff, (cpu->dp + adr + 1) & 0xffff, false);
-		pointer |= cpu_read((cpu->dp + adr + 2) & 0xffff) << 16;
+		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
+		uint32_t pointer = cpu_readWord((dp + adr) & 0xffff, (dp + adr + 1) & 0xffff, false);
+		pointer |= cpu_read((dp + adr + 2) & 0xffff) << 16;
 		*low = pointer;
 		return (pointer + 1) & 0xffffff;
 	}
 
-	static uint32_t cpu_adrIly(uint32_t* low) {
+	uint32_t Cpu::cpu_adrIly(uint32_t* low) {
 		uint8_t adr = cpu_readOpcode();
-		if(cpu->dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
-		uint32_t pointer = cpu_readWord((cpu->dp + adr) & 0xffff, (cpu->dp + adr + 1) & 0xffff, false);
-		pointer |= cpu_read((cpu->dp + adr + 2) & 0xffff) << 16;
-		*low = (pointer + cpu->y) & 0xffffff;
-		return (pointer + cpu->y + 1) & 0xffffff;
+		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
+		uint32_t pointer = cpu_readWord((dp + adr) & 0xffff, (dp + adr + 1) & 0xffff, false);
+		pointer |= cpu_read((dp + adr + 2) & 0xffff) << 16;
+		*low = (pointer + y) & 0xffffff;
+		return (pointer + y + 1) & 0xffffff;
 	}
 
-	static uint32_t cpu_adrSr(uint32_t* low) {
+	uint32_t Cpu::cpu_adrSr(uint32_t* low) {
 		uint8_t adr = cpu_readOpcode();
 		cpu_idle();
-		*low = (cpu->sp + adr) & 0xffff;
-		return (cpu->sp + adr + 1) & 0xffff;
+		*low = (sp + adr) & 0xffff;
+		return (sp + adr + 1) & 0xffff;
 	}
 
-	static uint32_t cpu_adrIsy(uint32_t* low) {
+	uint32_t Cpu::cpu_adrIsy(uint32_t* low) {
 		uint8_t adr = cpu_readOpcode();
 		cpu_idle();
-		uint16_t pointer = cpu_readWord((cpu->sp + adr) & 0xffff, (cpu->sp + adr + 1) & 0xffff, false);
+		uint16_t pointer = cpu_readWord((sp + adr) & 0xffff, (sp + adr + 1) & 0xffff, false);
 		cpu_idle();
-		*low = ((cpu->db << 16) + pointer + cpu->y) & 0xffffff;
-		return ((cpu->db << 16) + pointer + cpu->y + 1) & 0xffffff;
+		*low = ((db << 16) + pointer + y) & 0xffffff;
+		return ((db << 16) + pointer + y + 1) & 0xffffff;
 	}
 
-	static uint32_t cpu_adrAbs(uint32_t* low) {
+	uint32_t Cpu::cpu_adrAbs(uint32_t* low) {
 		uint16_t adr = cpu_readOpcodeWord(false);
-		*low = (cpu->db << 16) + adr;
-		return ((cpu->db << 16) + adr + 1) & 0xffffff;
+		*low = (db << 16) + adr;
+		return ((db << 16) + adr + 1) & 0xffffff;
 	}
 
-	static uint32_t cpu_adrAbx(uint32_t* low, bool write) {
-		uint16_t adr = cpu_readOpcodeWord(false);
-		// writing opcode or x = 0 or page crossed: 1 extra cycle
-		if(write || !cpu->xf || ((adr >> 8) != ((adr + cpu->x) >> 8))) cpu_idle();
-		*low = ((cpu->db << 16) + adr + cpu->x) & 0xffffff;
-		return ((cpu->db << 16) + adr + cpu->x + 1) & 0xffffff;
-	}
-
-	static uint32_t cpu_adrAby(uint32_t* low, bool write) {
+	uint32_t Cpu::cpu_adrAbx(uint32_t* low, bool write) {
 		uint16_t adr = cpu_readOpcodeWord(false);
 		// writing opcode or x = 0 or page crossed: 1 extra cycle
-		if(write || !cpu->xf || ((adr >> 8) != ((adr + cpu->y) >> 8))) cpu_idle();
-		*low = ((cpu->db << 16) + adr + cpu->y) & 0xffffff;
-		return ((cpu->db << 16) + adr + cpu->y + 1) & 0xffffff;
+		if(write || !xf || ((adr >> 8) != ((adr + x) >> 8))) cpu_idle();
+		*low = ((db << 16) + adr + x) & 0xffffff;
+		return ((db << 16) + adr + x + 1) & 0xffffff;
 	}
 
-	static uint32_t cpu_adrAbl(uint32_t* low) {
+	uint32_t Cpu::cpu_adrAby(uint32_t* low, bool write) {
+		uint16_t adr = cpu_readOpcodeWord(false);
+		// writing opcode or x = 0 or page crossed: 1 extra cycle
+		if(write || !xf || ((adr >> 8) != ((adr + y) >> 8))) cpu_idle();
+		*low = ((db << 16) + adr + y) & 0xffffff;
+		return ((db << 16) + adr + y + 1) & 0xffffff;
+	}
+
+	uint32_t Cpu::cpu_adrAbl(uint32_t* low) {
 		uint32_t adr = cpu_readOpcodeWord(false);
 		adr |= cpu_readOpcode() << 16;
 		*low = adr;
 		return (adr + 1) & 0xffffff;
 	}
 
-	static uint32_t cpu_adrAlx(uint32_t* low) {
+	uint32_t Cpu::cpu_adrAlx(uint32_t* low) {
 		uint32_t adr = cpu_readOpcodeWord(false);
 		adr |= cpu_readOpcode() << 16;
-		*low = (adr + cpu->x) & 0xffffff;
-		return (adr + cpu->x + 1) & 0xffffff;
+		*low = (adr + x) & 0xffffff;
+		return (adr + x + 1) & 0xffffff;
 	}
 
 	// opcode functions
 
-	static void cpu_and(uint32_t low, uint32_t high) {
-		if(cpu->mf) {
+	void Cpu::cpu_and(uint32_t low, uint32_t high) {
+		if(mf) {
 			cpu_checkInt();
 			uint8_t value = cpu_read(low);
-			cpu->a = (cpu->a & 0xff00) | ((cpu->a & value) & 0xff);
+			a = (a & 0xff00) | ((a & value) & 0xff);
 		} else {
 			uint16_t value = cpu_readWord(low, high, true);
-			cpu->a &= value;
+			a &= value;
 		}
-		cpu_setZN(cpu->a, cpu->mf);
+		cpu_setZN(a, mf);
 	}
 
-	static void cpu_ora(uint32_t low, uint32_t high) {
-		if(cpu->mf) {
+	void Cpu::cpu_ora(uint32_t low, uint32_t high) {
+		if(mf) {
 			cpu_checkInt();
 			uint8_t value = cpu_read(low);
-			cpu->a = (cpu->a & 0xff00) | ((cpu->a | value) & 0xff);
+			a = (a & 0xff00) | ((a | value) & 0xff);
 		} else {
 			uint16_t value = cpu_readWord(low, high, true);
-			cpu->a |= value;
+			a |= value;
 		}
-		cpu_setZN(cpu->a, cpu->mf);
+		cpu_setZN(a, mf);
 	}
 
-	static void cpu_eor(uint32_t low, uint32_t high) {
-		if(cpu->mf) {
+	void Cpu::cpu_eor(uint32_t low, uint32_t high) {
+		if(mf) {
 			cpu_checkInt();
 			uint8_t value = cpu_read(low);
-			cpu->a = (cpu->a & 0xff00) | ((cpu->a ^ value) & 0xff);
+			a = (a & 0xff00) | ((a ^ value) & 0xff);
 		} else {
 			uint16_t value = cpu_readWord(low, high, true);
-			cpu->a ^= value;
+			a ^= value;
 		}
-		cpu_setZN(cpu->a, cpu->mf);
+		cpu_setZN(a, mf);
 	}
 
-	static void cpu_adc(uint32_t low, uint32_t high) {
-		if(cpu->mf) {
+	void Cpu::cpu_adc(uint32_t low, uint32_t high) {
+		if(mf) {
 			cpu_checkInt();
 			uint8_t value = cpu_read(low);
 			int result = 0;
-			if(cpu->d) {
-				result = (cpu->a & 0xf) + (value & 0xf) + cpu->c;
+			if(d) {
+				result = (a & 0xf) + (value & 0xf) + c;
 				if(result > 0x9) result = ((result + 0x6) & 0xf) + 0x10;
-				result = (cpu->a & 0xf0) + (value & 0xf0) + result;
+				result = (a & 0xf0) + (value & 0xf0) + result;
 			} else {
-				result = (cpu->a & 0xff) + value + cpu->c;
+				result = (a & 0xff) + value + c;
 			}
-			cpu->v = (cpu->a & 0x80) == (value & 0x80) && (value & 0x80) != (result & 0x80);
-			if(cpu->d && result > 0x9f) result += 0x60;
-			cpu->c = result > 0xff;
-			cpu->a = (cpu->a & 0xff00) | (result & 0xff);
+			v = (a & 0x80) == (value & 0x80) && (value & 0x80) != (result & 0x80);
+			if(d && result > 0x9f) result += 0x60;
+			c = result > 0xff;
+			a = (a & 0xff00) | (result & 0xff);
 		} else {
 			uint16_t value = cpu_readWord(low, high, true);
 			int result = 0;
-			if(cpu->d) {
-				result = (cpu->a & 0xf) + (value & 0xf) + cpu->c;
+			if(d) {
+				result = (a & 0xf) + (value & 0xf) + c;
 				if(result > 0x9) result = ((result + 0x6) & 0xf) + 0x10;
-				result = (cpu->a & 0xf0) + (value & 0xf0) + result;
+				result = (a & 0xf0) + (value & 0xf0) + result;
 				if(result > 0x9f) result = ((result + 0x60) & 0xff) + 0x100;
-				result = (cpu->a & 0xf00) + (value & 0xf00) + result;
+				result = (a & 0xf00) + (value & 0xf00) + result;
 				if(result > 0x9ff) result = ((result + 0x600) & 0xfff) + 0x1000;
-				result = (cpu->a & 0xf000) + (value & 0xf000) + result;
+				result = (a & 0xf000) + (value & 0xf000) + result;
 			} else {
-				result = cpu->a + value + cpu->c;
+				result = a + value + c;
 			}
-			cpu->v = (cpu->a & 0x8000) == (value & 0x8000) && (value & 0x8000) != (result & 0x8000);
-			if(cpu->d && result > 0x9fff) result += 0x6000;
-			cpu->c = result > 0xffff;
-			cpu->a = result;
+			v = (a & 0x8000) == (value & 0x8000) && (value & 0x8000) != (result & 0x8000);
+			if(d && result > 0x9fff) result += 0x6000;
+			c = result > 0xffff;
+			a = result;
 		}
-		cpu_setZN(cpu->a, cpu->mf);
+		cpu_setZN(a, mf);
 	}
 
-	static void cpu_sbc(uint32_t low, uint32_t high) {
-		if(cpu->mf) {
+	void Cpu::cpu_sbc(uint32_t low, uint32_t high) {
+		if(mf) {
 			cpu_checkInt();
 			uint8_t value = cpu_read(low) ^ 0xff;
 			int result = 0;
-			if(cpu->d) {
-				result = (cpu->a & 0xf) + (value & 0xf) + cpu->c;
+			if(d) {
+				result = (a & 0xf) + (value & 0xf) + c;
 				if(result < 0x10) result = (result - 0x6) & ((result - 0x6 < 0) ? 0xf : 0x1f);
-				result = (cpu->a & 0xf0) + (value & 0xf0) + result;
+				result = (a & 0xf0) + (value & 0xf0) + result;
 			} else {
-				result = (cpu->a & 0xff) + value + cpu->c;
+				result = (a & 0xff) + value + c;
 			}
-			cpu->v = (cpu->a & 0x80) == (value & 0x80) && (value & 0x80) != (result & 0x80);
-			if(cpu->d && result < 0x100) result -= 0x60;
-			cpu->c = result > 0xff;
-			cpu->a = (cpu->a & 0xff00) | (result & 0xff);
+			v = (a & 0x80) == (value & 0x80) && (value & 0x80) != (result & 0x80);
+			if(d && result < 0x100) result -= 0x60;
+			c = result > 0xff;
+			a = (a & 0xff00) | (result & 0xff);
 		} else {
 			uint16_t value = cpu_readWord(low, high, true) ^ 0xffff;
 			int result = 0;
-			if(cpu->d) {
-				result = (cpu->a & 0xf) + (value & 0xf) + cpu->c;
+			if(d) {
+				result = (a & 0xf) + (value & 0xf) + c;
 				if(result < 0x10) result = (result - 0x6) & ((result - 0x6 < 0) ? 0xf : 0x1f);
-				result = (cpu->a & 0xf0) + (value & 0xf0) + result;
+				result = (a & 0xf0) + (value & 0xf0) + result;
 				if(result < 0x100) result = (result - 0x60) & ((result - 0x60 < 0) ? 0xff : 0x1ff);
-				result = (cpu->a & 0xf00) + (value & 0xf00) + result;
+				result = (a & 0xf00) + (value & 0xf00) + result;
 				if(result < 0x1000) result = (result - 0x600) & ((result - 0x600 < 0) ? 0xfff : 0x1fff);
-				result = (cpu->a & 0xf000) + (value & 0xf000) + result;
+				result = (a & 0xf000) + (value & 0xf000) + result;
 			} else {
-				result = cpu->a + value + cpu->c;
+				result = a + value + c;
 			}
-			cpu->v = (cpu->a & 0x8000) == (value & 0x8000) && (value & 0x8000) != (result & 0x8000);
-			if(cpu->d && result < 0x10000) result -= 0x6000;
-			cpu->c = result > 0xffff;
-			cpu->a = result;
+			v = (a & 0x8000) == (value & 0x8000) && (value & 0x8000) != (result & 0x8000);
+			if(d && result < 0x10000) result -= 0x6000;
+			c = result > 0xffff;
+			a = result;
 		}
-		cpu_setZN(cpu->a, cpu->mf);
+		cpu_setZN(a, mf);
 	}
 
-	static void cpu_cmp(uint32_t low, uint32_t high) {
+	void Cpu::cpu_cmp(uint32_t low, uint32_t high) {
 		int result = 0;
-		if(cpu->mf) {
+		if(mf) {
 			cpu_checkInt();
 			uint8_t value = cpu_read(low) ^ 0xff;
-			result = (cpu->a & 0xff) + value + 1;
-			cpu->c = result > 0xff;
+			result = (a & 0xff) + value + 1;
+			c = result > 0xff;
 		} else {
 			uint16_t value = cpu_readWord(low, high, true) ^ 0xffff;
-			result = cpu->a + value + 1;
-			cpu->c = result > 0xffff;
+			result = a + value + 1;
+			c = result > 0xffff;
 		}
-		cpu_setZN(result, cpu->mf);
+		cpu_setZN(result, mf);
 	}
 
-	static void cpu_cpx(uint32_t low, uint32_t high) {
+	void Cpu::cpu_cpx(uint32_t low, uint32_t high) {
 		int result = 0;
-		if(cpu->xf) {
+		if(xf) {
 			cpu_checkInt();
 			uint8_t value = cpu_read(low) ^ 0xff;
-			result = (cpu->x & 0xff) + value + 1;
-			cpu->c = result > 0xff;
+			result = (x & 0xff) + value + 1;
+			c = result > 0xff;
 		} else {
 			uint16_t value = cpu_readWord(low, high, true) ^ 0xffff;
-			result = cpu->x + value + 1;
-			cpu->c = result > 0xffff;
+			result = x + value + 1;
+			c = result > 0xffff;
 		}
-		cpu_setZN(result, cpu->xf);
+		cpu_setZN(result, xf);
 	}
 
-	static void cpu_cpy(uint32_t low, uint32_t high) {
+	void Cpu::cpu_cpy(uint32_t low, uint32_t high) {
 		int result = 0;
-		if(cpu->xf) {
+		if(xf) {
 			cpu_checkInt();
 			uint8_t value = cpu_read(low) ^ 0xff;
-			result = (cpu->y & 0xff) + value + 1;
-			cpu->c = result > 0xff;
+			result = (y & 0xff) + value + 1;
+			c = result > 0xff;
 		} else {
 			uint16_t value = cpu_readWord(low, high, true) ^ 0xffff;
-			result = cpu->y + value + 1;
-			cpu->c = result > 0xffff;
+			result = y + value + 1;
+			c = result > 0xffff;
 		}
-		cpu_setZN(result, cpu->xf);
+		cpu_setZN(result, xf);
 	}
 
-	static void cpu_bit(uint32_t low, uint32_t high) {
-		if(cpu->mf) {
+	void Cpu::cpu_bit(uint32_t low, uint32_t high) {
+		if(mf) {
 			cpu_checkInt();
 			uint8_t value = cpu_read(low);
-			uint8_t result = (cpu->a & 0xff) & value;
-			cpu->z = result == 0;
-			cpu->n = value & 0x80;
-			cpu->v = value & 0x40;
+			uint8_t result = (a & 0xff) & value;
+			z = result == 0;
+			n = value & 0x80;
+			v = value & 0x40;
 		} else {
 			uint16_t value = cpu_readWord(low, high, true);
-			uint16_t result = cpu->a & value;
-			cpu->z = result == 0;
-			cpu->n = value & 0x8000;
-			cpu->v = value & 0x4000;
+			uint16_t result = a & value;
+			z = result == 0;
+			n = value & 0x8000;
+			v = value & 0x4000;
 		}
 	}
 
-	static void cpu_lda(uint32_t low, uint32_t high) {
-		if(cpu->mf) {
+	void Cpu::cpu_lda(uint32_t low, uint32_t high) {
+		if(mf) {
 			cpu_checkInt();
-			cpu->a = (cpu->a & 0xff00) | cpu_read(low);
+			a = (a & 0xff00) | cpu_read(low);
 		} else {
-			cpu->a = cpu_readWord(low, high, true);
+			a = cpu_readWord(low, high, true);
 		}
-		cpu_setZN(cpu->a, cpu->mf);
+		cpu_setZN(a, mf);
 	}
 
-	static void cpu_ldx(uint32_t low, uint32_t high) {
-		if(cpu->xf) {
+	void Cpu::cpu_ldx(uint32_t low, uint32_t high) {
+		if(xf) {
 			cpu_checkInt();
-			cpu->x = cpu_read(low);
+			x = cpu_read(low);
 		} else {
-			cpu->x = cpu_readWord(low, high, true);
+			x = cpu_readWord(low, high, true);
 		}
-		cpu_setZN(cpu->x, cpu->xf);
+		cpu_setZN(x, xf);
 	}
 
-	static void cpu_ldy(uint32_t low, uint32_t high) {
-		if(cpu->xf) {
+	void Cpu::cpu_ldy(uint32_t low, uint32_t high) {
+		if(xf) {
 			cpu_checkInt();
-			cpu->y = cpu_read(low);
+			y = cpu_read(low);
 		} else {
-			cpu->y = cpu_readWord(low, high, true);
+			y = cpu_readWord(low, high, true);
 		}
-		cpu_setZN(cpu->y, cpu->xf);
+		cpu_setZN(y, xf);
 	}
 
-	static void cpu_sta(uint32_t low, uint32_t high) {
-		if(cpu->mf) {
+	void Cpu::cpu_sta(uint32_t low, uint32_t high) {
+		if(mf) {
 			cpu_checkInt();
-			cpu_write(low, cpu->a);
+			cpu_write(low, a);
 		} else {
-			cpu_writeWord(low, high, cpu->a, false, true);
+			cpu_writeWord(low, high, a, false, true);
 		}
 	}
 
-	static void cpu_stx(uint32_t low, uint32_t high) {
-		if(cpu->xf) {
+	void Cpu::cpu_stx(uint32_t low, uint32_t high) {
+		if(xf) {
 			cpu_checkInt();
-			cpu_write(low, cpu->x);
+			cpu_write(low, x);
 		} else {
-			cpu_writeWord(low, high, cpu->x, false, true);
+			cpu_writeWord(low, high, x, false, true);
 		}
 	}
 
-	static void cpu_sty(uint32_t low, uint32_t high) {
-		if(cpu->xf) {
+	void Cpu::cpu_sty(uint32_t low, uint32_t high) {
+		if(xf) {
 			cpu_checkInt();
-			cpu_write(low, cpu->y);
+			cpu_write(low, y);
 		} else {
-			cpu_writeWord(low, high, cpu->y, false, true);
+			cpu_writeWord(low, high, y, false, true);
 		}
 	}
 
-	static void cpu_stz(uint32_t low, uint32_t high) {
-		if(cpu->mf) {
+	void Cpu::cpu_stz(uint32_t low, uint32_t high) {
+		if(mf) {
 			cpu_checkInt();
 			cpu_write(low, 0);
 		} else {
@@ -656,83 +638,83 @@ namespace LakeSnes
 		}
 	}
 
-	static void cpu_ror(uint32_t low, uint32_t high) {
+	void Cpu::cpu_ror(uint32_t low, uint32_t high) {
 		bool carry = false;
 		int result = 0;
-		if(cpu->mf) {
+		if(mf) {
 			uint8_t value = cpu_read(low);
 			cpu_idle();
 			carry = value & 1;
-			result = (value >> 1) | (cpu->c << 7);
+			result = (value >> 1) | (c << 7);
 			cpu_checkInt();
 			cpu_write(low, result);
 		} else {
 			uint16_t value = cpu_readWord(low, high, false);
 			cpu_idle();
 			carry = value & 1;
-			result = (value >> 1) | (cpu->c << 15);
+			result = (value >> 1) | (c << 15);
 			cpu_writeWord(low, high, result, true, true);
 		}
-		cpu_setZN(result, cpu->mf);
-		cpu->c = carry;
+		cpu_setZN(result, mf);
+		c = carry;
 	}
 
-	static void cpu_rol(uint32_t low, uint32_t high) {
+	void Cpu::cpu_rol(uint32_t low, uint32_t high) {
 		int result = 0;
-		if(cpu->mf) {
-			result = (cpu_read(low) << 1) | cpu->c;
+		if(mf) {
+			result = (cpu_read(low) << 1) | c;
 			cpu_idle();
-			cpu->c = result & 0x100;
+			c = result & 0x100;
 			cpu_checkInt();
 			cpu_write(low, result);
 		} else {
-			result = (cpu_readWord(low, high, false) << 1) | cpu->c;
+			result = (cpu_readWord(low, high, false) << 1) | c;
 			cpu_idle();
-			cpu->c = result & 0x10000;
+			c = result & 0x10000;
 			cpu_writeWord(low, high, result, true, true);
 		}
-		cpu_setZN(result, cpu->mf);
+		cpu_setZN(result, mf);
 	}
 
-	static void cpu_lsr(uint32_t low, uint32_t high) {
+	void Cpu::cpu_lsr(uint32_t low, uint32_t high) {
 		int result = 0;
-		if(cpu->mf) {
+		if(mf) {
 			uint8_t value = cpu_read(low);
 			cpu_idle();
-			cpu->c = value & 1;
+			c = value & 1;
 			result = value >> 1;
 			cpu_checkInt();
 			cpu_write(low, result);
 		} else {
 			uint16_t value = cpu_readWord(low, high, false);
 			cpu_idle();
-			cpu->c = value & 1;
+			c = value & 1;
 			result = value >> 1;
 			cpu_writeWord(low, high, result, true, true);
 		}
-		cpu_setZN(result, cpu->mf);
+		cpu_setZN(result, mf);
 	}
 
-	static void cpu_asl(uint32_t low, uint32_t high) {
+	void Cpu::cpu_asl(uint32_t low, uint32_t high) {
 		int result = 0;
-		if(cpu->mf) {
+		if(mf) {
 			result = cpu_read(low) << 1;
 			cpu_idle();
-			cpu->c = result & 0x100;
+			c = result & 0x100;
 			cpu_checkInt();
 			cpu_write(low, result);
 		} else {
 			result = cpu_readWord(low, high, false) << 1;
 			cpu_idle();
-			cpu->c = result & 0x10000;
+			c = result & 0x10000;
 			cpu_writeWord(low, high, result, true, true);
 		}
-		cpu_setZN(result, cpu->mf);
+		cpu_setZN(result, mf);
 	}
 
-	static void cpu_inc(uint32_t low, uint32_t high) {
+	void Cpu::cpu_inc(uint32_t low, uint32_t high) {
 		int result = 0;
-		if(cpu->mf) {
+		if(mf) {
 			result = cpu_read(low) + 1;
 			cpu_idle();
 			cpu_checkInt();
@@ -742,12 +724,12 @@ namespace LakeSnes
 			cpu_idle();
 			cpu_writeWord(low, high, result, true, true);
 		}
-		cpu_setZN(result, cpu->mf);
+		cpu_setZN(result, mf);
 	}
 
-	static void cpu_dec(uint32_t low, uint32_t high) {
+	void Cpu::cpu_dec(uint32_t low, uint32_t high) {
 		int result = 0;
-		if(cpu->mf) {
+		if(mf) {
 			result = cpu_read(low) - 1;
 			cpu_idle();
 			cpu_checkInt();
@@ -757,51 +739,51 @@ namespace LakeSnes
 			cpu_idle();
 			cpu_writeWord(low, high, result, true, true);
 		}
-		cpu_setZN(result, cpu->mf);
+		cpu_setZN(result, mf);
 	}
 
-	static void cpu_tsb(uint32_t low, uint32_t high) {
-		if(cpu->mf) {
+	void Cpu::cpu_tsb(uint32_t low, uint32_t high) {
+		if(mf) {
 			uint8_t value = cpu_read(low);
 			cpu_idle();
-			cpu->z = ((cpu->a & 0xff) & value) == 0;
+			z = ((a & 0xff) & value) == 0;
 			cpu_checkInt();
-			cpu_write(low, value | (cpu->a & 0xff));
+			cpu_write(low, value | (a & 0xff));
 		} else {
 			uint16_t value = cpu_readWord(low, high, false);
 			cpu_idle();
-			cpu->z = (cpu->a & value) == 0;
-			cpu_writeWord(low, high, value | cpu->a, true, true);
+			z = (a & value) == 0;
+			cpu_writeWord(low, high, value | a, true, true);
 		}
 	}
 
-	static void cpu_trb(uint32_t low, uint32_t high) {
-		if(cpu->mf) {
+	void Cpu::cpu_trb(uint32_t low, uint32_t high) {
+		if(mf) {
 			uint8_t value = cpu_read(low);
 			cpu_idle();
-			cpu->z = ((cpu->a & 0xff) & value) == 0;
+			z = ((a & 0xff) & value) == 0;
 			cpu_checkInt();
-			cpu_write(low, value & ~(cpu->a & 0xff));
+			cpu_write(low, value & ~(a & 0xff));
 		} else {
 			uint16_t value = cpu_readWord(low, high, false);
 			cpu_idle();
-			cpu->z = (cpu->a & value) == 0;
-			cpu_writeWord(low, high, value & ~cpu->a, true, true);
+			z = (a & value) == 0;
+			cpu_writeWord(low, high, value & ~a, true, true);
 		}
 	}
 
-	static void cpu_doOpcode(uint8_t opcode) {
+	void Cpu::cpu_doOpcode(uint8_t opcode) {
 		switch(opcode) {
 			case 0x00: { // brk imm(s)
-				uint32_t vector = (cpu->e) ? 0xfffe : 0xffe6;
+				uint32_t vector = (e) ? 0xfffe : 0xffe6;
 				cpu_readOpcode();
-				if (!cpu->e) cpu_pushByte(cpu->k);
-				cpu_pushWord(cpu->pc, false);
+				if (!e) cpu_pushByte(k);
+				cpu_pushWord(pc, false);
 				cpu_pushByte(cpu_getFlags());
-				cpu->i = true;
-				cpu->d = false;
-				cpu->k = 0;
-				cpu->pc = cpu_readWord(vector, vector + 1, true);
+				i = true;
+				d = false;
+				k = 0;
+				pc = cpu_readWord(vector, vector + 1, true);
 				break;
 			}
 			case 0x01: { // ora idx
@@ -811,15 +793,15 @@ namespace LakeSnes
 				break;
 			}
 			case 0x02: { // cop imm(s)
-				uint32_t vector = (cpu->e) ? 0xfff4 : 0xffe4;
+				uint32_t vector = (e) ? 0xfff4 : 0xffe4;
 				cpu_readOpcode();
-				if (!cpu->e) cpu_pushByte(cpu->k);
-				cpu_pushWord(cpu->pc, false);
+				if (!e) cpu_pushByte(k);
+				cpu_pushWord(pc, false);
 				cpu_pushByte(cpu_getFlags());
-				cpu->i = true;
-				cpu->d = false;
-				cpu->k = 0;
-				cpu->pc = cpu_readWord(vector, vector + 1, true);
+				i = true;
+				d = false;
+				k = 0;
+				pc = cpu_readWord(vector, vector + 1, true);
 				break;
 			}
 			case 0x03: { // ora sr
@@ -866,19 +848,19 @@ namespace LakeSnes
 			}
 			case 0x0a: { // asla imp
 				cpu_adrImp();
-				if(cpu->mf) {
-					cpu->c = cpu->a & 0x80;
-					cpu->a = (cpu->a & 0xff00) | ((cpu->a << 1) & 0xff);
+				if(mf) {
+					c = a & 0x80;
+					a = (a & 0xff00) | ((a << 1) & 0xff);
 				} else {
-					cpu->c = cpu->a & 0x8000;
-					cpu->a <<= 1;
+					c = a & 0x8000;
+					a <<= 1;
 				}
-				cpu_setZN(cpu->a, cpu->mf);
+				cpu_setZN(a, mf);
 				break;
 			}
 			case 0x0b: { // phd imp
 				cpu_idle();
-				cpu_pushWord(cpu->dp, true);
+				cpu_pushWord(dp, true);
 				break;
 			}
 			case 0x0c: { // tsb abs
@@ -906,7 +888,7 @@ namespace LakeSnes
 				break;
 			}
 			case 0x10: { // bpl rel
-				cpu_doBranch(!cpu->n);
+				cpu_doBranch(!n);
 				break;
 			}
 			case 0x11: { // ora idy(r)
@@ -953,7 +935,7 @@ namespace LakeSnes
 			}
 			case 0x18: { // clc imp
 				cpu_adrImp();
-				cpu->c = false;
+				c = false;
 				break;
 			}
 			case 0x19: { // ora aby(r)
@@ -964,17 +946,17 @@ namespace LakeSnes
 			}
 			case 0x1a: { // inca imp
 				cpu_adrImp();
-				if(cpu->mf) {
-					cpu->a = (cpu->a & 0xff00) | ((cpu->a + 1) & 0xff);
+				if(mf) {
+					a = (a & 0xff00) | ((a + 1) & 0xff);
 				} else {
-					cpu->a++;
+					a++;
 				}
-				cpu_setZN(cpu->a, cpu->mf);
+				cpu_setZN(a, mf);
 				break;
 			}
 			case 0x1b: { // tcs imp
 				cpu_adrImp();
-				cpu->sp = (cpu->e) ? (cpu->a & 0xff) | 0x100 : cpu->a;
+				sp = (e) ? (a & 0xff) | 0x100 : a;
 				break;
 			}
 			case 0x1c: { // trb abs
@@ -1004,8 +986,8 @@ namespace LakeSnes
 			case 0x20: { // jsr abs
 				uint16_t value = cpu_readOpcodeWord(false);
 				cpu_idle();
-				cpu_pushWord(cpu->pc - 1, true);
-				cpu->pc = value;
+				cpu_pushWord(pc - 1, true);
+				pc = value;
 				break;
 			}
 			case 0x21: { // and idx
@@ -1016,12 +998,12 @@ namespace LakeSnes
 			}
 			case 0x22: { // jsl abl
 				uint16_t value = cpu_readOpcodeWord(false);
-				cpu_pushByte(cpu->k);
+				cpu_pushByte(k);
 				cpu_idle();
 				uint8_t newK = cpu_readOpcode();
-				cpu_pushWord(cpu->pc - 1, true);
-				cpu->pc = value;
-				cpu->k = newK;
+				cpu_pushWord(pc - 1, true);
+				pc = value;
+				k = newK;
 				break;
 			}
 			case 0x23: { // and sr
@@ -1069,22 +1051,22 @@ namespace LakeSnes
 			}
 			case 0x2a: { // rola imp
 				cpu_adrImp();
-				int result = (cpu->a << 1) | cpu->c;
-				if(cpu->mf) {
-					cpu->c = result & 0x100;
-					cpu->a = (cpu->a & 0xff00) | (result & 0xff);
+				int result = (a << 1) | c;
+				if(mf) {
+					c = result & 0x100;
+					a = (a & 0xff00) | (result & 0xff);
 				} else {
-					cpu->c = result & 0x10000;
-					cpu->a = result;
+					c = result & 0x10000;
+					a = result;
 				}
-				cpu_setZN(cpu->a, cpu->mf);
+				cpu_setZN(a, mf);
 				break;
 			}
 			case 0x2b: { // pld imp
 				cpu_idle();
 				cpu_idle();
-				cpu->dp = cpu_pullWord(true);
-				cpu_setZN(cpu->dp, false);
+				dp = cpu_pullWord(true);
+				cpu_setZN(dp, false);
 				break;
 			}
 			case 0x2c: { // bit abs
@@ -1112,7 +1094,7 @@ namespace LakeSnes
 				break;
 			}
 			case 0x30: { // bmi rel
-				cpu_doBranch(cpu->n);
+				cpu_doBranch(n);
 				break;
 			}
 			case 0x31: { // and idy(r)
@@ -1159,7 +1141,7 @@ namespace LakeSnes
 			}
 			case 0x38: { // sec imp
 				cpu_adrImp();
-				cpu->c = true;
+				c = true;
 				break;
 			}
 			case 0x39: { // and aby(r)
@@ -1170,18 +1152,18 @@ namespace LakeSnes
 			}
 			case 0x3a: { // deca imp
 				cpu_adrImp();
-				if(cpu->mf) {
-					cpu->a = (cpu->a & 0xff00) | ((cpu->a - 1) & 0xff);
+				if(mf) {
+					a = (a & 0xff00) | ((a - 1) & 0xff);
 				} else {
-					cpu->a--;
+					a--;
 				}
-				cpu_setZN(cpu->a, cpu->mf);
+				cpu_setZN(a, mf);
 				break;
 			}
 			case 0x3b: { // tsc imp
 				cpu_adrImp();
-				cpu->a = cpu->sp;
-				cpu_setZN(cpu->a, false);
+				a = sp;
+				cpu_setZN(a, false);
 				break;
 			}
 			case 0x3c: { // bit abx(r)
@@ -1212,9 +1194,9 @@ namespace LakeSnes
 				cpu_idle();
 				cpu_idle();
 				cpu_setFlags(cpu_pullByte());
-				cpu->pc = cpu_pullWord(false);
+				pc = cpu_pullWord(false);
 				cpu_checkInt();
-				cpu->k = cpu_pullByte();
+				k = cpu_pullByte();
 				break;
 			}
 			case 0x41: { // eor idx
@@ -1237,17 +1219,17 @@ namespace LakeSnes
 			case 0x44: { // mvp bm
 				uint8_t dest = cpu_readOpcode();
 				uint8_t src = cpu_readOpcode();
-				cpu->db = dest;
-				cpu_write((dest << 16) | cpu->y, cpu_read((src << 16) | cpu->x));
-				cpu->a--;
-				cpu->x--;
-				cpu->y--;
-				if(cpu->a != 0xffff) {
-					cpu->pc -= 3;
+				db = dest;
+				cpu_write((dest << 16) | y, cpu_read((src << 16) | x));
+				a--;
+				x--;
+				y--;
+				if(a != 0xffff) {
+					pc -= 3;
 				}
-				if(cpu->xf) {
-					cpu->x &= 0xff;
-					cpu->y &= 0xff;
+				if(xf) {
+					x &= 0xff;
+					y &= 0xff;
 				}
 				cpu_idle();
 				cpu_checkInt();
@@ -1274,11 +1256,11 @@ namespace LakeSnes
 			}
 			case 0x48: { // pha imp
 				cpu_idle();
-				if(cpu->mf) {
+				if(mf) {
 					cpu_checkInt();
-					cpu_pushByte(cpu->a);
+					cpu_pushByte(a);
 				} else {
-					cpu_pushWord(cpu->a, true);
+					cpu_pushWord(a, true);
 				}
 				break;
 			}
@@ -1290,23 +1272,23 @@ namespace LakeSnes
 			}
 			case 0x4a: { // lsra imp
 				cpu_adrImp();
-				cpu->c = cpu->a & 1;
-				if(cpu->mf) {
-					cpu->a = (cpu->a & 0xff00) | ((cpu->a >> 1) & 0x7f);
+				c = a & 1;
+				if(mf) {
+					a = (a & 0xff00) | ((a >> 1) & 0x7f);
 				} else {
-					cpu->a >>= 1;
+					a >>= 1;
 				}
-				cpu_setZN(cpu->a, cpu->mf);
+				cpu_setZN(a, mf);
 				break;
 			}
 			case 0x4b: { // phk imp
 				cpu_idle();
 				cpu_checkInt();
-				cpu_pushByte(cpu->k);
+				cpu_pushByte(k);
 				break;
 			}
 			case 0x4c: { // jmp abs
-				cpu->pc = cpu_readOpcodeWord(true);
+				pc = cpu_readOpcodeWord(true);
 				break;
 			}
 			case 0x4d: { // eor abs
@@ -1328,7 +1310,7 @@ namespace LakeSnes
 				break;
 			}
 			case 0x50: { // bvc rel
-				cpu_doBranch(!cpu->v);
+				cpu_doBranch(!v);
 				break;
 			}
 			case 0x51: { // eor idy(r)
@@ -1352,17 +1334,17 @@ namespace LakeSnes
 			case 0x54: { // mvn bm
 				uint8_t dest = cpu_readOpcode();
 				uint8_t src = cpu_readOpcode();
-				cpu->db = dest;
-				cpu_write((dest << 16) | cpu->y, cpu_read((src << 16) | cpu->x));
-				cpu->a--;
-				cpu->x++;
-				cpu->y++;
-				if(cpu->a != 0xffff) {
-					cpu->pc -= 3;
+				db = dest;
+				cpu_write((dest << 16) | y, cpu_read((src << 16) | x));
+				a--;
+				x++;
+				y++;
+				if(a != 0xffff) {
+					pc -= 3;
 				}
-				if(cpu->xf) {
-					cpu->x &= 0xff;
-					cpu->y &= 0xff;
+				if(xf) {
+					x &= 0xff;
+					y &= 0xff;
 				}
 				cpu_idle();
 				cpu_checkInt();
@@ -1389,7 +1371,7 @@ namespace LakeSnes
 			}
 			case 0x58: { // cli imp
 				cpu_adrImp();
-				cpu->i = false;
+				i = false;
 				break;
 			}
 			case 0x59: { // eor aby(r)
@@ -1400,25 +1382,25 @@ namespace LakeSnes
 			}
 			case 0x5a: { // phy imp
 				cpu_idle();
-				if(cpu->xf) {
+				if(xf) {
 					cpu_checkInt();
-					cpu_pushByte(cpu->y);
+					cpu_pushByte(y);
 				} else {
-					cpu_pushWord(cpu->y, true);
+					cpu_pushWord(y, true);
 				}
 				break;
 			}
 			case 0x5b: { // tcd imp
 				cpu_adrImp();
-				cpu->dp = cpu->a;
-				cpu_setZN(cpu->dp, false);
+				dp = a;
+				cpu_setZN(dp, false);
 				break;
 			}
 			case 0x5c: { // jml abl
 				uint16_t value = cpu_readOpcodeWord(false);
 				cpu_checkInt();
-				cpu->k = cpu_readOpcode();
-				cpu->pc = value;
+				k = cpu_readOpcode();
+				pc = value;
 				break;
 			}
 			case 0x5d: { // eor abx(r)
@@ -1442,7 +1424,7 @@ namespace LakeSnes
 			case 0x60: { // rts imp
 				cpu_idle();
 				cpu_idle();
-				cpu->pc = cpu_pullWord(false) + 1;
+				pc = cpu_pullWord(false) + 1;
 				cpu_checkInt();
 				cpu_idle();
 				break;
@@ -1456,7 +1438,7 @@ namespace LakeSnes
 			case 0x62: { // per rll
 				uint16_t value = cpu_readOpcodeWord(false);
 				cpu_idle();
-				cpu_pushWord(cpu->pc + (int16_t) value, true);
+				cpu_pushWord(pc + (int16_t) value, true);
 				break;
 			}
 			case 0x63: { // adc sr
@@ -1492,13 +1474,13 @@ namespace LakeSnes
 			case 0x68: { // pla imp
 				cpu_idle();
 				cpu_idle();
-				if(cpu->mf) {
+				if(mf) {
 					cpu_checkInt();
-					cpu->a = (cpu->a & 0xff00) | cpu_pullByte();
+					a = (a & 0xff00) | cpu_pullByte();
 				} else {
-					cpu->a = cpu_pullWord(true);
+					a = cpu_pullWord(true);
 				}
-				cpu_setZN(cpu->a, cpu->mf);
+				cpu_setZN(a, mf);
 				break;
 			}
 			case 0x69: { // adc imm(m)
@@ -1509,27 +1491,27 @@ namespace LakeSnes
 			}
 			case 0x6a: { // rora imp
 				cpu_adrImp();
-				bool carry = cpu->a & 1;
-				if(cpu->mf) {
-					cpu->a = (cpu->a & 0xff00) | ((cpu->a >> 1) & 0x7f) | (cpu->c << 7);
+				bool carry = a & 1;
+				if(mf) {
+					a = (a & 0xff00) | ((a >> 1) & 0x7f) | (c << 7);
 				} else {
-					cpu->a = (cpu->a >> 1) | (cpu->c << 15);
+					a = (a >> 1) | (c << 15);
 				}
-				cpu->c = carry;
-				cpu_setZN(cpu->a, cpu->mf);
+				c = carry;
+				cpu_setZN(a, mf);
 				break;
 			}
 			case 0x6b: { // rtl imp
 				cpu_idle();
 				cpu_idle();
-				cpu->pc = cpu_pullWord(false) + 1;
+				pc = cpu_pullWord(false) + 1;
 				cpu_checkInt();
-				cpu->k = cpu_pullByte();
+				k = cpu_pullByte();
 				break;
 			}
 			case 0x6c: { // jmp ind
 				uint16_t adr = cpu_readOpcodeWord(false);
-				cpu->pc = cpu_readWord(adr, (adr + 1) & 0xffff, true);
+				pc = cpu_readWord(adr, (adr + 1) & 0xffff, true);
 				break;
 			}
 			case 0x6d: { // adc abs
@@ -1551,7 +1533,7 @@ namespace LakeSnes
 				break;
 			}
 			case 0x70: { // bvs rel
-				cpu_doBranch(cpu->v);
+				cpu_doBranch(v);
 				break;
 			}
 			case 0x71: { // adc idy(r)
@@ -1598,7 +1580,7 @@ namespace LakeSnes
 			}
 			case 0x78: { // sei imp
 				cpu_adrImp();
-				cpu->i = true;
+				i = true;
 				break;
 			}
 			case 0x79: { // adc aby(r)
@@ -1610,25 +1592,25 @@ namespace LakeSnes
 			case 0x7a: { // ply imp
 				cpu_idle();
 				cpu_idle();
-				if(cpu->xf) {
+				if(xf) {
 					cpu_checkInt();
-					cpu->y = cpu_pullByte();
+					y = cpu_pullByte();
 				} else {
-					cpu->y = cpu_pullWord(true);
+					y = cpu_pullWord(true);
 				}
-				cpu_setZN(cpu->y, cpu->xf);
+				cpu_setZN(y, xf);
 				break;
 			}
 			case 0x7b: { // tdc imp
 				cpu_adrImp();
-				cpu->a = cpu->dp;
-				cpu_setZN(cpu->a, false);
+				a = dp;
+				cpu_setZN(a, false);
 				break;
 			}
 			case 0x7c: { // jmp iax
 				uint16_t adr = cpu_readOpcodeWord(false);
 				cpu_idle();
-				cpu->pc = cpu_readWord((cpu->k << 16) | ((adr + cpu->x) & 0xffff), (cpu->k << 16) | ((adr + cpu->x + 1) & 0xffff), true);
+				pc = cpu_readWord((k << 16) | ((adr + x) & 0xffff), (k << 16) | ((adr + x + 1) & 0xffff), true);
 				break;
 			}
 			case 0x7d: { // adc abx(r)
@@ -1660,7 +1642,7 @@ namespace LakeSnes
 				break;
 			}
 			case 0x82: { // brl rll
-				cpu->pc += (int16_t) cpu_readOpcodeWord(false);
+				pc += (int16_t) cpu_readOpcodeWord(false);
 				cpu_checkInt();
 				cpu_idle();
 				break;
@@ -1697,39 +1679,39 @@ namespace LakeSnes
 			}
 			case 0x88: { // dey imp
 				cpu_adrImp();
-				if(cpu->xf) {
-					cpu->y = (cpu->y - 1) & 0xff;
+				if(xf) {
+					y = (y - 1) & 0xff;
 				} else {
-					cpu->y--;
+					y--;
 				}
-				cpu_setZN(cpu->y, cpu->xf);
+				cpu_setZN(y, xf);
 				break;
 			}
 			case 0x89: { // biti imm(m)
-				if(cpu->mf) {
+				if(mf) {
 					cpu_checkInt();
-					uint8_t result = (cpu->a & 0xff) & cpu_readOpcode();
-					cpu->z = result == 0;
+					uint8_t result = (a & 0xff) & cpu_readOpcode();
+					z = result == 0;
 				} else {
-					uint16_t result = cpu->a & cpu_readOpcodeWord(true);
-					cpu->z = result == 0;
+					uint16_t result = a & cpu_readOpcodeWord(true);
+					z = result == 0;
 				}
 				break;
 			}
 			case 0x8a: { // txa imp
 				cpu_adrImp();
-				if(cpu->mf) {
-					cpu->a = (cpu->a & 0xff00) | (cpu->x & 0xff);
+				if(mf) {
+					a = (a & 0xff00) | (x & 0xff);
 				} else {
-					cpu->a = cpu->x;
+					a = x;
 				}
-				cpu_setZN(cpu->a, cpu->mf);
+				cpu_setZN(a, mf);
 				break;
 			}
 			case 0x8b: { // phb imp
 				cpu_idle();
 				cpu_checkInt();
-				cpu_pushByte(cpu->db);
+				cpu_pushByte(db);
 				break;
 			}
 			case 0x8c: { // sty abs
@@ -1757,7 +1739,7 @@ namespace LakeSnes
 				break;
 			}
 			case 0x90: { // bcc rel
-				cpu_doBranch(!cpu->c);
+				cpu_doBranch(!c);
 				break;
 			}
 			case 0x91: { // sta idy
@@ -1804,12 +1786,12 @@ namespace LakeSnes
 			}
 			case 0x98: { // tya imp
 				cpu_adrImp();
-				if(cpu->mf) {
-					cpu->a = (cpu->a & 0xff00) | (cpu->y & 0xff);
+				if(mf) {
+					a = (a & 0xff00) | (y & 0xff);
 				} else {
-					cpu->a = cpu->y;
+					a = y;
 				}
-				cpu_setZN(cpu->a, cpu->mf);
+				cpu_setZN(a, mf);
 				break;
 			}
 			case 0x99: { // sta aby
@@ -1820,17 +1802,17 @@ namespace LakeSnes
 			}
 			case 0x9a: { // txs imp
 				cpu_adrImp();
-				cpu->sp = (cpu->e) ? (cpu->x & 0xff) | 0x100 : cpu->x;
+				sp = (e) ? (x & 0xff) | 0x100 : x;
 				break;
 			}
 			case 0x9b: { // txy imp
 				cpu_adrImp();
-				if(cpu->xf) {
-					cpu->y = cpu->x & 0xff;
+				if(xf) {
+					y = x & 0xff;
 				} else {
-					cpu->y = cpu->x;
+					y = x;
 				}
-				cpu_setZN(cpu->y, cpu->xf);
+				cpu_setZN(y, xf);
 				break;
 			}
 			case 0x9c: { // stz abs
@@ -1907,12 +1889,12 @@ namespace LakeSnes
 			}
 			case 0xa8: { // tay imp
 				cpu_adrImp();
-				if(cpu->xf) {
-					cpu->y = cpu->a & 0xff;
+				if(xf) {
+					y = a & 0xff;
 				} else {
-					cpu->y = cpu->a;
+					y = a;
 				}
-				cpu_setZN(cpu->y, cpu->xf);
+				cpu_setZN(y, xf);
 				break;
 			}
 			case 0xa9: { // lda imm(m)
@@ -1923,20 +1905,20 @@ namespace LakeSnes
 			}
 			case 0xaa: { // tax imp
 				cpu_adrImp();
-				if(cpu->xf) {
-					cpu->x = cpu->a & 0xff;
+				if(xf) {
+					x = a & 0xff;
 				} else {
-					cpu->x = cpu->a;
+					x = a;
 				}
-				cpu_setZN(cpu->x, cpu->xf);
+				cpu_setZN(x, xf);
 				break;
 			}
 			case 0xab: { // plb imp
 				cpu_idle();
 				cpu_idle();
 				cpu_checkInt();
-				cpu->db = cpu_pullByte();
-				cpu_setZN(cpu->db, true);
+				db = cpu_pullByte();
+				cpu_setZN(db, true);
 				break;
 			}
 			case 0xac: { // ldy abs
@@ -1964,7 +1946,7 @@ namespace LakeSnes
 				break;
 			}
 			case 0xb0: { // bcs rel
-				cpu_doBranch(cpu->c);
+				cpu_doBranch(c);
 				break;
 			}
 			case 0xb1: { // lda idy(r)
@@ -2011,7 +1993,7 @@ namespace LakeSnes
 			}
 			case 0xb8: { // clv imp
 				cpu_adrImp();
-				cpu->v = false;
+				v = false;
 				break;
 			}
 			case 0xb9: { // lda aby(r)
@@ -2022,22 +2004,22 @@ namespace LakeSnes
 			}
 			case 0xba: { // tsx imp
 				cpu_adrImp();
-				if(cpu->xf) {
-					cpu->x = cpu->sp & 0xff;
+				if(xf) {
+					x = sp & 0xff;
 				} else {
-					cpu->x = cpu->sp;
+					x = sp;
 				}
-				cpu_setZN(cpu->x, cpu->xf);
+				cpu_setZN(x, xf);
 				break;
 			}
 			case 0xbb: { // tyx imp
 				cpu_adrImp();
-				if(cpu->xf) {
-					cpu->x = cpu->y & 0xff;
+				if(xf) {
+					x = y & 0xff;
 				} else {
-					cpu->x = cpu->y;
+					x = y;
 				}
-				cpu_setZN(cpu->x, cpu->xf);
+				cpu_setZN(x, xf);
 				break;
 			}
 			case 0xbc: { // ldy abx(r)
@@ -2115,12 +2097,12 @@ namespace LakeSnes
 			}
 			case 0xc8: { // iny imp
 				cpu_adrImp();
-				if(cpu->xf) {
-					cpu->y = (cpu->y + 1) & 0xff;
+				if(xf) {
+					y = (y + 1) & 0xff;
 				} else {
-					cpu->y++;
+					y++;
 				}
-				cpu_setZN(cpu->y, cpu->xf);
+				cpu_setZN(y, xf);
 				break;
 			}
 			case 0xc9: { // cmp imm(m)
@@ -2131,16 +2113,16 @@ namespace LakeSnes
 			}
 			case 0xca: { // dex imp
 				cpu_adrImp();
-				if(cpu->xf) {
-					cpu->x = (cpu->x - 1) & 0xff;
+				if(xf) {
+					x = (x - 1) & 0xff;
 				} else {
-					cpu->x--;
+					x--;
 				}
-				cpu_setZN(cpu->x, cpu->xf);
+				cpu_setZN(x, xf);
 				break;
 			}
 			case 0xcb: { // wai imp
-				cpu->waiting = true;
+				waiting = true;
 				cpu_idle();
 				cpu_idle();
 				break;
@@ -2170,7 +2152,7 @@ namespace LakeSnes
 				break;
 			}
 			case 0xd0: { // bne rel
-				cpu_doBranch(!cpu->z);
+				cpu_doBranch(!z);
 				break;
 			}
 			case 0xd1: { // cmp idy(r)
@@ -2217,7 +2199,7 @@ namespace LakeSnes
 			}
 			case 0xd8: { // cld imp
 				cpu_adrImp();
-				cpu->d = false;
+				d = false;
 				break;
 			}
 			case 0xd9: { // cmp aby(r)
@@ -2228,25 +2210,25 @@ namespace LakeSnes
 			}
 			case 0xda: { // phx imp
 				cpu_idle();
-				if(cpu->xf) {
+				if(xf) {
 					cpu_checkInt();
-					cpu_pushByte(cpu->x);
+					cpu_pushByte(x);
 				} else {
-					cpu_pushWord(cpu->x, true);
+					cpu_pushWord(x, true);
 				}
 				break;
 			}
 			case 0xdb: { // stp imp
-				cpu->stopped = true;
+				stopped = true;
 				cpu_idle();
 				cpu_idle();
 				break;
 			}
 			case 0xdc: { // jml ial
 				uint16_t adr = cpu_readOpcodeWord(false);
-				cpu->pc = cpu_readWord(adr, (adr + 1) & 0xffff, false);
+				pc = cpu_readWord(adr, (adr + 1) & 0xffff, false);
 				cpu_checkInt();
-				cpu->k = cpu_read((adr + 2) & 0xffff);
+				k = cpu_read((adr + 2) & 0xffff);
 				break;
 			}
 			case 0xdd: { // cmp abx(r)
@@ -2318,12 +2300,12 @@ namespace LakeSnes
 			}
 			case 0xe8: { // inx imp
 				cpu_adrImp();
-				if(cpu->xf) {
-					cpu->x = (cpu->x + 1) & 0xff;
+				if(xf) {
+					x = (x + 1) & 0xff;
 				} else {
-					cpu->x++;
+					x++;
 				}
-				cpu_setZN(cpu->x, cpu->xf);
+				cpu_setZN(x, xf);
 				break;
 			}
 			case 0xe9: { // sbc imm(m)
@@ -2338,9 +2320,9 @@ namespace LakeSnes
 				break;
 			}
 			case 0xeb: { // xba imp
-				uint8_t low = cpu->a & 0xff;
-				uint8_t high = cpu->a >> 8;
-				cpu->a = (low << 8) | high;
+				uint8_t low = a & 0xff;
+				uint8_t high = a >> 8;
+				a = (low << 8) | high;
 				cpu_setZN(high, true);
 				cpu_idle();
 				cpu_checkInt();
@@ -2372,7 +2354,7 @@ namespace LakeSnes
 				break;
 			}
 			case 0xf0: { // beq rel
-				cpu_doBranch(cpu->z);
+				cpu_doBranch(z);
 				break;
 			}
 			case 0xf1: { // sbc idy(r)
@@ -2417,7 +2399,7 @@ namespace LakeSnes
 			}
 			case 0xf8: { // sed imp
 				cpu_adrImp();
-				cpu->d = true;
+				d = true;
 				break;
 			}
 			case 0xf9: { // sbc aby(r)
@@ -2429,30 +2411,30 @@ namespace LakeSnes
 			case 0xfa: { // plx imp
 				cpu_idle();
 				cpu_idle();
-				if(cpu->xf) {
+				if(xf) {
 					cpu_checkInt();
-					cpu->x = cpu_pullByte();
+					x = cpu_pullByte();
 				} else {
-					cpu->x = cpu_pullWord(true);
+					x = cpu_pullWord(true);
 				}
-				cpu_setZN(cpu->x, cpu->xf);
+				cpu_setZN(x, xf);
 				break;
 			}
 			case 0xfb: { // xce imp
 				cpu_adrImp();
-				bool temp = cpu->c;
-				cpu->c = cpu->e;
-				cpu->e = temp;
+				bool temp = c;
+				c = e;
+				e = temp;
 				cpu_setFlags(cpu_getFlags()); // updates x and m flags, clears upper half of x and y if needed
 				break;
 			}
 			case 0xfc: { // jsr iax
 				uint8_t adrl = cpu_readOpcode();
-				cpu_pushWord(cpu->pc, false);
+				cpu_pushWord(pc, false);
 				uint16_t adr = adrl | (cpu_readOpcode() << 8);
 				cpu_idle();
-				uint16_t value = cpu_readWord((cpu->k << 16) | ((adr + cpu->x) & 0xffff), (cpu->k << 16) | ((adr + cpu->x + 1) & 0xffff), true);
-				cpu->pc = value;
+				uint16_t value = cpu_readWord((k << 16) | ((adr + x) & 0xffff), (k << 16) | ((adr + x + 1) & 0xffff), true);
+				pc = value;
 				break;
 			}
 			case 0xfd: { // sbc abx(r)

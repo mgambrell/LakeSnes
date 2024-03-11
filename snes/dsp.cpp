@@ -2,16 +2,22 @@
 #include "apu.h"
 #include "snes.h"
 #include "statehandler.h"
-#include "global.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
 
-
-namespace LakeSnes
+namespace
 {
+	static int clamp16(int val) {
+		return val < -0x8000 ? -0x8000 : (val > 0x7fff ? 0x7fff : val);
+	}
+
+	static int clip16(int val) {
+		return (int16_t) (val & 0xffff);
+	}
+
 
 	static const int rateValues[32] = {
 		0, 2048, 1536, 1280, 1024, 768, 640, 512,
@@ -60,183 +66,173 @@ namespace LakeSnes
 		0x513, 0x514, 0x514, 0x515, 0x516, 0x516, 0x517, 0x517, 0x517, 0x518, 0x518, 0x518, 0x518, 0x518, 0x519, 0x519
 	};
 
-	static int clamp16(int val);
-	static int clip16(int val);
-	static bool dsp_checkCounter(int rate);
-	static void dsp_cycleChannel(int ch);
-	static void dsp_handleEcho();
-	static void dsp_handleGain(int ch);
-	static void dsp_decodeBrr(int ch);
-	static int16_t dsp_getSample(int ch);
-	static void dsp_handleNoise();
+}
 
-	void dsp_init() {
+namespace LakeSnes
+{
+	void Dsp::dsp_init(Apu* apu) {
+		config.apu = apu;
+		config.snes = apu->config.snes;
 	}
 
-	void dsp_free() {
+	void Dsp::dsp_free() {
 	}
 
-	void dsp_reset() {
-		memset(dsp->ram, 0, sizeof(dsp->ram));
-		dsp->ram[0x7c] = 0xff; // set ENDx
+	void Dsp::dsp_reset() {
+		memset(ram, 0, sizeof(ram));
+		ram[0x7c] = 0xff; // set ENDx
 		for(int i = 0; i < 8; i++) {
-			dsp->channel[i].pitch = 0;
-			dsp->channel[i].pitchCounter = 0;	
-			dsp->channel[i].pitchModulation = false;
-			memset(dsp->channel[i].decodeBuffer, 0, sizeof(dsp->channel[i].decodeBuffer));
-			dsp->channel[i].bufferOffset = 0;
-			dsp->channel[i].srcn = 0;
-			dsp->channel[i].decodeOffset = 0;
-			dsp->channel[i].blockOffset = 0;
-			dsp->channel[i].brrHeader = 0;
-			dsp->channel[i].useNoise = false;
-			dsp->channel[i].startDelay = 0;
-			memset(dsp->channel[i].adsrRates, 0, sizeof(dsp->channel[i].adsrRates));
-			dsp->channel[i].adsrState = 0;
-			dsp->channel[i].sustainLevel = 0;
-			dsp->channel[i].gainSustainLevel = 0;
-			dsp->channel[i].useGain = false;
-			dsp->channel[i].gainMode = 0;
-			dsp->channel[i].directGain = false;
-			dsp->channel[i].gainValue = 0;
-			dsp->channel[i].preclampGain = 0;
-			dsp->channel[i].gain = 0;
-			dsp->channel[i].keyOn = false;
-			dsp->channel[i].keyOff = false;
-			dsp->channel[i].sampleOut = 0;
-			dsp->channel[i].volumeL = 0;
-			dsp->channel[i].volumeR = 0;
-			dsp->channel[i].echoEnable = false;
+			channel[i].pitch = 0;
+			channel[i].pitchCounter = 0;	
+			channel[i].pitchModulation = false;
+			memset(channel[i].decodeBuffer, 0, sizeof(channel[i].decodeBuffer));
+			channel[i].bufferOffset = 0;
+			channel[i].srcn = 0;
+			channel[i].decodeOffset = 0;
+			channel[i].blockOffset = 0;
+			channel[i].brrHeader = 0;
+			channel[i].useNoise = false;
+			channel[i].startDelay = 0;
+			memset(channel[i].adsrRates, 0, sizeof(channel[i].adsrRates));
+			channel[i].adsrState = 0;
+			channel[i].sustainLevel = 0;
+			channel[i].gainSustainLevel = 0;
+			channel[i].useGain = false;
+			channel[i].gainMode = 0;
+			channel[i].directGain = false;
+			channel[i].gainValue = 0;
+			channel[i].preclampGain = 0;
+			channel[i].gain = 0;
+			channel[i].keyOn = false;
+			channel[i].keyOff = false;
+			channel[i].sampleOut = 0;
+			channel[i].volumeL = 0;
+			channel[i].volumeR = 0;
+			channel[i].echoEnable = false;
 		}
-		dsp->counter = 0;
-		dsp->dirPage = 0;
-		dsp->evenCycle = true;
-		dsp->mute = true;
-		dsp->reset = true;
-		dsp->masterVolumeL = 0;
-		dsp->masterVolumeR = 0;
-		dsp->sampleOutL = 0;
-		dsp->sampleOutR = 0;
-		dsp->echoOutL = 0;
-		dsp->echoOutR = 0;
-		dsp->noiseSample = 0x4000;
-		dsp->noiseRate = 0;
-		dsp->echoWrites = false;
-		dsp->echoVolumeL = 0;
-		dsp->echoVolumeR = 0;
-		dsp->feedbackVolume = 0;
-		dsp->echoBufferAdr = 0;
-		dsp->echoDelay = 0;
-		dsp->echoLength = 0;
-		dsp->echoBufferIndex = 0;
-		dsp->firBufferIndex = 0;
-		memset(dsp->firValues, 0, sizeof(dsp->firValues));
-		memset(dsp->firBufferL, 0, sizeof(dsp->firBufferL));
-		memset(dsp->firBufferR, 0, sizeof(dsp->firBufferR));
-		memset(dsp->sampleBuffer, 0, sizeof(dsp->sampleBuffer));
-		dsp->sampleOffset = 0;
-		dsp->lastFrameBoundary = 0;
+		counter = 0;
+		dirPage = 0;
+		evenCycle = true;
+		mute = true;
+		reset = true;
+		masterVolumeL = 0;
+		masterVolumeR = 0;
+		sampleOutL = 0;
+		sampleOutR = 0;
+		echoOutL = 0;
+		echoOutR = 0;
+		noiseSample = 0x4000;
+		noiseRate = 0;
+		echoWrites = false;
+		echoVolumeL = 0;
+		echoVolumeR = 0;
+		feedbackVolume = 0;
+		echoBufferAdr = 0;
+		echoDelay = 0;
+		echoLength = 0;
+		echoBufferIndex = 0;
+		firBufferIndex = 0;
+		memset(firValues, 0, sizeof(firValues));
+		memset(firBufferL, 0, sizeof(firBufferL));
+		memset(firBufferR, 0, sizeof(firBufferR));
+		memset(sampleBuffer, 0, sizeof(sampleBuffer));
+		sampleOffset = 0;
+		lastFrameBoundary = 0;
 	}
 
-	void dsp_newFrame() {
-		dsp->lastFrameBoundary = dsp->sampleOffset;
+	void Dsp::dsp_newFrame() {
+		lastFrameBoundary = sampleOffset;
 	}
 
-	void dsp_handleState(StateHandler* sh) {
-		sh_handleBools(sh, &dsp->evenCycle, &dsp->mute, &dsp->reset, &dsp->echoWrites, NULL);
-		sh_handleBytes(sh, &dsp->noiseRate, &dsp->firBufferIndex, NULL);
+	void Dsp::dsp_handleState(StateHandler* sh) {
+		sh_handleBools(sh, &evenCycle, &mute, &reset, &echoWrites, NULL);
+		sh_handleBytes(sh, &noiseRate, &firBufferIndex, NULL);
 		sh_handleBytesS(sh,
-			&dsp->masterVolumeL, &dsp->masterVolumeR, &dsp->echoVolumeL, &dsp->echoVolumeR, &dsp->feedbackVolume,
-			&dsp->firValues[0], &dsp->firValues[1], &dsp->firValues[2], &dsp->firValues[3], &dsp->firValues[4],
-			&dsp->firValues[5], &dsp->firValues[6], &dsp->firValues[7], NULL
+			&masterVolumeL, &masterVolumeR, &echoVolumeL, &echoVolumeR, &feedbackVolume,
+			&firValues[0], &firValues[1], &firValues[2], &firValues[3], &firValues[4],
+			&firValues[5], &firValues[6], &firValues[7], NULL
 		);
 		sh_handleWords(sh,
-			&dsp->counter, &dsp->dirPage, &dsp->echoBufferAdr, &dsp->echoDelay, &dsp->echoLength, &dsp->echoBufferIndex, NULL
+			&counter, &dirPage, &echoBufferAdr, &echoDelay, &echoLength, &echoBufferIndex, NULL
 		);
 		sh_handleWordsS(sh,
-			&dsp->sampleOutL, &dsp->sampleOutR, &dsp->echoOutL, &dsp->echoOutR, &dsp->noiseSample,
-			&dsp->firBufferL[0], &dsp->firBufferL[1], &dsp->firBufferL[2], &dsp->firBufferL[3], &dsp->firBufferL[4],
-			&dsp->firBufferL[5], &dsp->firBufferL[6], &dsp->firBufferL[7], &dsp->firBufferR[0], &dsp->firBufferR[1],
-			&dsp->firBufferR[2], &dsp->firBufferR[3], &dsp->firBufferR[4], &dsp->firBufferR[5], &dsp->firBufferR[6],
-			&dsp->firBufferR[7], NULL
+			&sampleOutL, &sampleOutR, &echoOutL, &echoOutR, &noiseSample,
+			&firBufferL[0], &firBufferL[1], &firBufferL[2], &firBufferL[3], &firBufferL[4],
+			&firBufferL[5], &firBufferL[6], &firBufferL[7], &firBufferR[0], &firBufferR[1],
+			&firBufferR[2], &firBufferR[3], &firBufferR[4], &firBufferR[5], &firBufferR[6],
+			&firBufferR[7], NULL
 		);
 		for(int i = 0; i < 8; i++) {
 			sh_handleBools(sh,
-				&dsp->channel[i].pitchModulation, &dsp->channel[i].useNoise, &dsp->channel[i].useGain, &dsp->channel[i].directGain,
-				&dsp->channel[i].keyOn, &dsp->channel[i].keyOff, &dsp->channel[i].echoEnable, NULL
+				&channel[i].pitchModulation, &channel[i].useNoise, &channel[i].useGain, &channel[i].directGain,
+				&channel[i].keyOn, &channel[i].keyOff, &channel[i].echoEnable, NULL
 			);
 			sh_handleBytes(sh,
-				&dsp->channel[i].bufferOffset, &dsp->channel[i].srcn, &dsp->channel[i].blockOffset, &dsp->channel[i].brrHeader,
-				&dsp->channel[i].startDelay, &dsp->channel[i].adsrRates[0], &dsp->channel[i].adsrRates[1],
-				&dsp->channel[i].adsrRates[2], &dsp->channel[i].adsrRates[3], &dsp->channel[i].adsrState,
-				&dsp->channel[i].sustainLevel, &dsp->channel[i].gainSustainLevel, &dsp->channel[i].gainMode, NULL
+				&channel[i].bufferOffset, &channel[i].srcn, &channel[i].blockOffset, &channel[i].brrHeader,
+				&channel[i].startDelay, &channel[i].adsrRates[0], &channel[i].adsrRates[1],
+				&channel[i].adsrRates[2], &channel[i].adsrRates[3], &channel[i].adsrState,
+				&channel[i].sustainLevel, &channel[i].gainSustainLevel, &channel[i].gainMode, NULL
 			);
-			sh_handleBytesS(sh, &dsp->channel[i].volumeL, &dsp->channel[i].volumeR, NULL);
+			sh_handleBytesS(sh, &channel[i].volumeL, &channel[i].volumeR, NULL);
 			sh_handleWords(sh,
-				&dsp->channel[i].pitch, &dsp->channel[i].pitchCounter, &dsp->channel[i].decodeOffset, &dsp->channel[i].gainValue,
-				&dsp->channel[i].preclampGain, &dsp->channel[i].gain, NULL
+				&channel[i].pitch, &channel[i].pitchCounter, &channel[i].decodeOffset, &channel[i].gainValue,
+				&channel[i].preclampGain, &channel[i].gain, NULL
 			);
 			sh_handleWordsS(sh,
-				&dsp->channel[i].decodeBuffer[0], &dsp->channel[i].decodeBuffer[1], &dsp->channel[i].decodeBuffer[2],
-				&dsp->channel[i].decodeBuffer[3], &dsp->channel[i].decodeBuffer[4], &dsp->channel[i].decodeBuffer[5],
-				&dsp->channel[i].decodeBuffer[6], &dsp->channel[i].decodeBuffer[7], &dsp->channel[i].decodeBuffer[8],
-				&dsp->channel[i].decodeBuffer[9], &dsp->channel[i].decodeBuffer[10], &dsp->channel[i].decodeBuffer[11],
-				&dsp->channel[i].sampleOut, NULL
+				&channel[i].decodeBuffer[0], &channel[i].decodeBuffer[1], &channel[i].decodeBuffer[2],
+				&channel[i].decodeBuffer[3], &channel[i].decodeBuffer[4], &channel[i].decodeBuffer[5],
+				&channel[i].decodeBuffer[6], &channel[i].decodeBuffer[7], &channel[i].decodeBuffer[8],
+				&channel[i].decodeBuffer[9], &channel[i].decodeBuffer[10], &channel[i].decodeBuffer[11],
+				&channel[i].sampleOut, NULL
 			);
 		}
-		sh_handleByteArray(sh, dsp->ram, 0x80);
+		sh_handleByteArray(sh, ram, 0x80);
 	}
 
-	void dsp_cycle() {
-		dsp->sampleOutL = 0;
-		dsp->sampleOutR = 0;
-		dsp->echoOutL = 0;
-		dsp->echoOutR = 0;
+	void Dsp::dsp_cycle() {
+		sampleOutL = 0;
+		sampleOutR = 0;
+		echoOutL = 0;
+		echoOutR = 0;
 		for(int i = 0; i < 8; i++) {
 			dsp_cycleChannel(i);
 		}
 		dsp_handleEcho(); // also applies master volume
-		dsp->counter = dsp->counter == 0 ? 30720 : dsp->counter - 1;
+		counter = counter == 0 ? 30720 : counter - 1;
 		dsp_handleNoise();
-		dsp->evenCycle = !dsp->evenCycle;
+		evenCycle = !evenCycle;
 		// handle mute flag
-		if(dsp->mute) {
-			dsp->sampleOutL = 0;
-			dsp->sampleOutR = 0;
+		if(mute) {
+			sampleOutL = 0;
+			sampleOutR = 0;
 		}
 		// put final sample in the samplebuffer
-		dsp->sampleBuffer[(dsp->sampleOffset & 0x7ff) * 2] = dsp->sampleOutL;
-		dsp->sampleBuffer[(dsp->sampleOffset++ & 0x7ff) * 2 + 1] = dsp->sampleOutR;
+		sampleBuffer[(sampleOffset & 0x7ff) * 2] = sampleOutL;
+		sampleBuffer[(sampleOffset++ & 0x7ff) * 2 + 1] = sampleOutR;
 	}
 
-	static int clamp16(int val) {
-		return val < -0x8000 ? -0x8000 : (val > 0x7fff ? 0x7fff : val);
-	}
 
-	static int clip16(int val) {
-		return (int16_t) (val & 0xffff);
-	}
 
-	static bool dsp_checkCounter(int rate) {
+	bool Dsp::dsp_checkCounter(int rate) {
 		if(rate == 0) return false;
-		return ((dsp->counter + rateOffsets[rate]) % rateValues[rate]) == 0;
+		return ((counter + rateOffsets[rate]) % rateValues[rate]) == 0;
 	}
 
-	static void dsp_handleEcho() {
+	void Dsp::dsp_handleEcho() {
 		// increment fir buffer index
-		dsp->firBufferIndex++;
-		dsp->firBufferIndex &= 0x7;
+		firBufferIndex++;
+		firBufferIndex &= 0x7;
 		// get value out of ram
-		uint16_t adr = dsp->echoBufferAdr + dsp->echoBufferIndex;
-		int16_t ramSample = apu->ram[adr] | (apu->ram[(adr + 1) & 0xffff] << 8);
-		dsp->firBufferL[dsp->firBufferIndex] = ramSample >> 1;
-		ramSample = apu->ram[(adr + 2) & 0xffff] | (apu->ram[(adr + 3) & 0xffff] << 8);
-		dsp->firBufferR[dsp->firBufferIndex] = ramSample >> 1;
+		uint16_t adr = echoBufferAdr + echoBufferIndex;
+		int16_t ramSample = config.apu->ram[adr] | (config.apu->ram[(adr + 1) & 0xffff] << 8);
+		firBufferL[firBufferIndex] = ramSample >> 1;
+		ramSample = config.apu->ram[(adr + 2) & 0xffff] | (config.apu->ram[(adr + 3) & 0xffff] << 8);
+		firBufferR[firBufferIndex] = ramSample >> 1;
 		// calculate FIR-sum
 		int sumL = 0, sumR = 0;
 		for(int i = 0; i < 8; i++) {
-			sumL += (dsp->firBufferL[(dsp->firBufferIndex + i + 1) & 0x7] * dsp->firValues[i]) >> 6;
-			sumR += (dsp->firBufferR[(dsp->firBufferIndex + i + 1) & 0x7] * dsp->firValues[i]) >> 6;
+			sumL += (firBufferL[(firBufferIndex + i + 1) & 0x7] * firValues[i]) >> 6;
+			sumR += (firBufferR[(firBufferIndex + i + 1) & 0x7] * firValues[i]) >> 6;
 			if(i == 6) {
 				// clip to 16-bit before last addition
 				sumL = clip16(sumL);
@@ -246,171 +242,171 @@ namespace LakeSnes
 		sumL = clamp16(sumL) & ~1;
 		sumR = clamp16(sumR) & ~1;
 		// apply master volume and modify output with sum
-		dsp->sampleOutL = clamp16(((dsp->sampleOutL * dsp->masterVolumeL) >> 7) + ((sumL * dsp->echoVolumeL) >> 7));
-		dsp->sampleOutR = clamp16(((dsp->sampleOutR * dsp->masterVolumeR) >> 7) + ((sumR * dsp->echoVolumeR) >> 7));
+		sampleOutL = clamp16(((sampleOutL * masterVolumeL) >> 7) + ((sumL * echoVolumeL) >> 7));
+		sampleOutR = clamp16(((sampleOutR * masterVolumeR) >> 7) + ((sumR * echoVolumeR) >> 7));
 		// get echo value
-		int echoL = clamp16(dsp->echoOutL + clip16((sumL * dsp->feedbackVolume) >> 7)) & ~1;
-		int echoR = clamp16(dsp->echoOutR + clip16((sumR * dsp->feedbackVolume) >> 7)) & ~1;
+		int echoL = clamp16(echoOutL + clip16((sumL * feedbackVolume) >> 7)) & ~1;
+		int echoR = clamp16(echoOutR + clip16((sumR * feedbackVolume) >> 7)) & ~1;
 		// write it to ram
-		if(dsp->echoWrites) {
-			apu->ram[adr] = echoL & 0xff;
-			apu->ram[(adr + 1) & 0xffff] = echoL >> 8;
-			apu->ram[(adr + 2) & 0xffff] = echoR & 0xff;
-			apu->ram[(adr + 3) & 0xffff] = echoR >> 8;
+		if(echoWrites) {
+			config.apu->ram[adr] = echoL & 0xff;
+			config.apu->ram[(adr + 1) & 0xffff] = echoL >> 8;
+			config.apu->ram[(adr + 2) & 0xffff] = echoR & 0xff;
+			config.apu->ram[(adr + 3) & 0xffff] = echoR >> 8;
 		}
 		// handle indexes
-		if(dsp->echoBufferIndex == 0) {
-			dsp->echoLength = dsp->echoDelay * 4;
+		if(echoBufferIndex == 0) {
+			echoLength = echoDelay * 4;
 		}
-		dsp->echoBufferIndex += 4;
-		if(dsp->echoBufferIndex >= dsp->echoLength) {
-			dsp->echoBufferIndex = 0;
+		echoBufferIndex += 4;
+		if(echoBufferIndex >= echoLength) {
+			echoBufferIndex = 0;
 		}
 	}
 
-	static void dsp_cycleChannel(int ch) {
+	void Dsp::dsp_cycleChannel(int ch) {
 		// handle pitch counter
-		int pitch = dsp->channel[ch].pitch;
-		if(ch > 0 && dsp->channel[ch].pitchModulation) {
-			pitch += ((dsp->channel[ch - 1].sampleOut >> 5) * pitch) >> 10;
+		int pitch = channel[ch].pitch;
+		if(ch > 0 && channel[ch].pitchModulation) {
+			pitch += ((channel[ch - 1].sampleOut >> 5) * pitch) >> 10;
 		}
 		// get current brr header and get sample address
-		dsp->channel[ch].brrHeader = apu->ram[dsp->channel[ch].decodeOffset];
-		uint16_t samplePointer = dsp->dirPage + 4 * dsp->channel[ch].srcn;
-		if(dsp->channel[ch].startDelay == 0) samplePointer += 2;
-		uint16_t sampleAdr = apu->ram[samplePointer] | (apu->ram[(samplePointer + 1) & 0xffff] << 8);
+		channel[ch].brrHeader = config.apu->ram[channel[ch].decodeOffset];
+		uint16_t samplePointer = dirPage + 4 * channel[ch].srcn;
+		if(channel[ch].startDelay == 0) samplePointer += 2;
+		uint16_t sampleAdr = config.apu->ram[samplePointer] | (config.apu->ram[(samplePointer + 1) & 0xffff] << 8);
 		// handle starting of sample
-		if(dsp->channel[ch].startDelay > 0) {
-			if(dsp->channel[ch].startDelay == 5) {
+		if(channel[ch].startDelay > 0) {
+			if(channel[ch].startDelay == 5) {
 				// first keyed on
-				dsp->channel[ch].decodeOffset = sampleAdr;
-				dsp->channel[ch].blockOffset = 1;
-				dsp->channel[ch].bufferOffset = 0;
-				dsp->channel[ch].brrHeader = 0;
-				dsp->ram[0x7c] &= ~(1 << ch); // clear ENDx
+				channel[ch].decodeOffset = sampleAdr;
+				channel[ch].blockOffset = 1;
+				channel[ch].bufferOffset = 0;
+				channel[ch].brrHeader = 0;
+				ram[0x7c] &= ~(1 << ch); // clear ENDx
 			}
-			dsp->channel[ch].gain = 0;
-			dsp->channel[ch].startDelay--;
-			dsp->channel[ch].pitchCounter = 0;
-			if(dsp->channel[ch].startDelay > 0 && dsp->channel[ch].startDelay < 4) {
-				dsp->channel[ch].pitchCounter = 0x4000;
+			channel[ch].gain = 0;
+			channel[ch].startDelay--;
+			channel[ch].pitchCounter = 0;
+			if(channel[ch].startDelay > 0 && channel[ch].startDelay < 4) {
+				channel[ch].pitchCounter = 0x4000;
 			}
 			pitch = 0;
 		}
 		// get sample
 		int sample = 0;
-		if(dsp->channel[ch].useNoise) {
-			sample = clip16(dsp->noiseSample * 2);
+		if(channel[ch].useNoise) {
+			sample = clip16(noiseSample * 2);
 		} else {
 			sample = dsp_getSample(ch);
 		}
-		sample = ((sample * dsp->channel[ch].gain) >> 11) & ~1;
+		sample = ((sample * channel[ch].gain) >> 11) & ~1;
 		// handle reset and release
-		if(dsp->reset || (dsp->channel[ch].brrHeader & 0x03) == 1) {
-			dsp->channel[ch].adsrState = 3; // go to release
-			dsp->channel[ch].gain = 0;
+		if(reset || (channel[ch].brrHeader & 0x03) == 1) {
+			channel[ch].adsrState = 3; // go to release
+			channel[ch].gain = 0;
 		}
 		// handle keyon/keyoff
-		if(dsp->evenCycle) {
-			if(dsp->channel[ch].keyOff) {
-				dsp->channel[ch].adsrState = 3; // go to release
+		if(evenCycle) {
+			if(channel[ch].keyOff) {
+				channel[ch].adsrState = 3; // go to release
 			}
-			if(dsp->channel[ch].keyOn) {
-				dsp->channel[ch].startDelay = 5;
-				dsp->channel[ch].adsrState = 0; // go to attack
-				dsp->channel[ch].keyOn = false;
+			if(channel[ch].keyOn) {
+				channel[ch].startDelay = 5;
+				channel[ch].adsrState = 0; // go to attack
+				channel[ch].keyOn = false;
 			}
 		}
 		// handle envelope
-		if(dsp->channel[ch].startDelay == 0) {
+		if(channel[ch].startDelay == 0) {
 			dsp_handleGain(ch);
 		}
 		// decode new brr samples if needed and update offsets
-		if(dsp->channel[ch].pitchCounter >= 0x4000) {
+		if(channel[ch].pitchCounter >= 0x4000) {
 			dsp_decodeBrr(ch);
-			if(dsp->channel[ch].blockOffset >= 7) {
-				if(dsp->channel[ch].brrHeader & 0x1) {
-					dsp->channel[ch].decodeOffset = sampleAdr;
-					dsp->ram[0x7c] |= 1 << ch; // set ENDx
+			if(channel[ch].blockOffset >= 7) {
+				if(channel[ch].brrHeader & 0x1) {
+					channel[ch].decodeOffset = sampleAdr;
+					ram[0x7c] |= 1 << ch; // set ENDx
 				} else {
-					dsp->channel[ch].decodeOffset += 9;
+					channel[ch].decodeOffset += 9;
 				}
-				dsp->channel[ch].blockOffset = 1;
+				channel[ch].blockOffset = 1;
 			} else {
-				dsp->channel[ch].blockOffset += 2;
+				channel[ch].blockOffset += 2;
 			}
 		}
 		// update pitch counter
-		dsp->channel[ch].pitchCounter &= 0x3fff;
-		dsp->channel[ch].pitchCounter += pitch;
-		if(dsp->channel[ch].pitchCounter > 0x7fff) dsp->channel[ch].pitchCounter = 0x7fff;
+		channel[ch].pitchCounter &= 0x3fff;
+		channel[ch].pitchCounter += pitch;
+		if(channel[ch].pitchCounter > 0x7fff) channel[ch].pitchCounter = 0x7fff;
 		// set outputs
-		dsp->ram[(ch << 4) | 8] = dsp->channel[ch].gain >> 4;
-		dsp->ram[(ch << 4) | 9] = sample >> 8;
-		dsp->channel[ch].sampleOut = sample;
-		dsp->sampleOutL = clamp16(dsp->sampleOutL + ((sample * dsp->channel[ch].volumeL) >> 7));
-		dsp->sampleOutR = clamp16(dsp->sampleOutR + ((sample * dsp->channel[ch].volumeR) >> 7));
-		if(dsp->channel[ch].echoEnable) {
-			dsp->echoOutL = clamp16(dsp->echoOutL + ((sample * dsp->channel[ch].volumeL) >> 7));
-			dsp->echoOutR = clamp16(dsp->echoOutR + ((sample * dsp->channel[ch].volumeR) >> 7));
+		ram[(ch << 4) | 8] = channel[ch].gain >> 4;
+		ram[(ch << 4) | 9] = sample >> 8;
+		channel[ch].sampleOut = sample;
+		sampleOutL = clamp16(sampleOutL + ((sample * channel[ch].volumeL) >> 7));
+		sampleOutR = clamp16(sampleOutR + ((sample * channel[ch].volumeR) >> 7));
+		if(channel[ch].echoEnable) {
+			echoOutL = clamp16(echoOutL + ((sample * channel[ch].volumeL) >> 7));
+			echoOutR = clamp16(echoOutR + ((sample * channel[ch].volumeR) >> 7));
 		}
 	}
 
-	static void dsp_handleGain(int ch) {
-		int newGain = dsp->channel[ch].gain;
+	void Dsp::dsp_handleGain(int ch) {
+		int newGain = channel[ch].gain;
 		int rate = 0;
 		// handle gain mode
-		if(dsp->channel[ch].adsrState == 3) { // release
+		if(channel[ch].adsrState == 3) { // release
 			rate = 31;
 			newGain -= 8;
 		} else {
-			if(!dsp->channel[ch].useGain) {
-				rate = dsp->channel[ch].adsrRates[dsp->channel[ch].adsrState];
-				switch(dsp->channel[ch].adsrState) {
+			if(!channel[ch].useGain) {
+				rate = channel[ch].adsrRates[channel[ch].adsrState];
+				switch(channel[ch].adsrState) {
 					case 0: newGain += rate == 31 ? 1024 : 32; break; // attack
 					case 1: newGain -= ((newGain - 1) >> 8) + 1; break; // decay
 					case 2: newGain -= ((newGain - 1) >> 8) + 1; break; // sustain
 				}
 			} else {
-				if(!dsp->channel[ch].directGain) {
-					rate = dsp->channel[ch].adsrRates[3];
-					switch(dsp->channel[ch].gainMode) {
+				if(!channel[ch].directGain) {
+					rate = channel[ch].adsrRates[3];
+					switch(channel[ch].gainMode) {
 						case 0: newGain -= 32; break; // linear decrease
 						case 1: newGain -= ((newGain - 1) >> 8) + 1; break; // exponential decrease
 						case 2: newGain += 32; break; // linear increase
-						case 3: newGain += (dsp->channel[ch].preclampGain < 0x600) ? 32 : 8; break; // bent increase
+						case 3: newGain += (channel[ch].preclampGain < 0x600) ? 32 : 8; break; // bent increase
 					}
 				} else { // direct gain
 					rate = 31;
-					newGain = dsp->channel[ch].gainValue;
+					newGain = channel[ch].gainValue;
 				}
 			}
 		}
 		// use sustain level according to mode
-		int sustainLevel = dsp->channel[ch].useGain ? dsp->channel[ch].gainSustainLevel : dsp->channel[ch].sustainLevel;
-		if(dsp->channel[ch].adsrState == 1 && (newGain >> 8) == sustainLevel) {
-			dsp->channel[ch].adsrState = 2; // go to sustain
+		int sustainLevel = channel[ch].useGain ? channel[ch].gainSustainLevel : channel[ch].sustainLevel;
+		if(channel[ch].adsrState == 1 && (newGain >> 8) == sustainLevel) {
+			channel[ch].adsrState = 2; // go to sustain
 		}
 		// store pre-clamped gain (for bent increase)
-		dsp->channel[ch].preclampGain = newGain & 0xffff;
+		channel[ch].preclampGain = newGain & 0xffff;
 		// clamp gain
 		if(newGain < 0 || newGain > 0x7ff) {
 			newGain = newGain < 0 ? 0 : 0x7ff;
-			if(dsp->channel[ch].adsrState == 0) {
-				dsp->channel[ch].adsrState = 1; // go to decay
+			if(channel[ch].adsrState == 0) {
+				channel[ch].adsrState = 1; // go to decay
 			}
 		}
 		// store new value
-		if(dsp_checkCounter(rate)) dsp->channel[ch].gain = newGain;
+		if(dsp_checkCounter(rate)) channel[ch].gain = newGain;
 	}
 
-	static int16_t dsp_getSample(int ch) {
-		int pos = (dsp->channel[ch].pitchCounter >> 12) + dsp->channel[ch].bufferOffset;
-		int offset = (dsp->channel[ch].pitchCounter >> 4) & 0xff;
-		int16_t news = dsp->channel[ch].decodeBuffer[(pos + 3) % 12];
-		int16_t olds = dsp->channel[ch].decodeBuffer[(pos + 2) % 12];
-		int16_t olders = dsp->channel[ch].decodeBuffer[(pos + 1) % 12];
-		int16_t oldests = dsp->channel[ch].decodeBuffer[pos % 12];
+	int16_t Dsp::dsp_getSample(int ch) {
+		int pos = (channel[ch].pitchCounter >> 12) + channel[ch].bufferOffset;
+		int offset = (channel[ch].pitchCounter >> 4) & 0xff;
+		int16_t news = channel[ch].decodeBuffer[(pos + 3) % 12];
+		int16_t olds = channel[ch].decodeBuffer[(pos + 2) % 12];
+		int16_t olders = channel[ch].decodeBuffer[(pos + 1) % 12];
+		int16_t oldests = channel[ch].decodeBuffer[pos % 12];
 		int out = (gaussValues[0xff - offset] * oldests) >> 11;
 		out += (gaussValues[0x1ff - offset] * olders) >> 11;
 		out += (gaussValues[0x100 + offset] * olds) >> 11;
@@ -418,19 +414,19 @@ namespace LakeSnes
 		return clamp16(out) & ~1;
 	}
 
-	static void dsp_decodeBrr(int ch) {
-		int shift = dsp->channel[ch].brrHeader >> 4;
-		int filter = (dsp->channel[ch].brrHeader & 0xc) >> 2;
-		int bOff = dsp->channel[ch].bufferOffset;
-		int old = dsp->channel[ch].decodeBuffer[bOff == 0 ? 11 : bOff - 1] >> 1;
-		int older = dsp->channel[ch].decodeBuffer[bOff == 0 ? 10 : bOff - 2] >> 1;
+	void Dsp::dsp_decodeBrr(int ch) {
+		int shift = channel[ch].brrHeader >> 4;
+		int filter = (channel[ch].brrHeader & 0xc) >> 2;
+		int bOff = channel[ch].bufferOffset;
+		int old = channel[ch].decodeBuffer[bOff == 0 ? 11 : bOff - 1] >> 1;
+		int older = channel[ch].decodeBuffer[bOff == 0 ? 10 : bOff - 2] >> 1;
 		uint8_t curByte = 0;
 		for(int i = 0; i < 4; i++) {
 			int s = 0;
 			if(i & 1) {
 				s = curByte & 0xf;
 			} else {
-				curByte = apu->ram[(dsp->channel[ch].decodeOffset + dsp->channel[ch].blockOffset + (i >> 1)) & 0xffff];
+				curByte = config.apu->ram[(channel[ch].decodeOffset + channel[ch].blockOffset + (i >> 1)) & 0xffff];
 				s = curByte >> 4;
 			}
 			if(s > 7) s -= 16;
@@ -444,100 +440,100 @@ namespace LakeSnes
 				case 2: s += 2 * old + ((3 * -old) >> 5) - older + (older >> 4); break;
 				case 3: s += 2 * old + ((13 * -old) >> 6) - older + ((3 * older) >> 4); break;
 			}
-			dsp->channel[ch].decodeBuffer[bOff + i] = clamp16(s) * 2; // cuts off bit 15
+			channel[ch].decodeBuffer[bOff + i] = clamp16(s) * 2; // cuts off bit 15
 			older = old;
-			old = dsp->channel[ch].decodeBuffer[bOff + i] >> 1;
+			old = channel[ch].decodeBuffer[bOff + i] >> 1;
 		}
-		dsp->channel[ch].bufferOffset += 4;
-		if(dsp->channel[ch].bufferOffset >= 12) dsp->channel[ch].bufferOffset = 0;
+		channel[ch].bufferOffset += 4;
+		if(channel[ch].bufferOffset >= 12) channel[ch].bufferOffset = 0;
 	}
 
-	static void dsp_handleNoise() {
-		if(dsp_checkCounter(dsp->noiseRate)) {
-			int bit = (dsp->noiseSample & 1) ^ ((dsp->noiseSample >> 1) & 1);
-			dsp->noiseSample = ((dsp->noiseSample >> 1) & 0x3fff) | (bit << 14);
+	void Dsp::dsp_handleNoise() {
+		if(dsp_checkCounter(noiseRate)) {
+			int bit = (noiseSample & 1) ^ ((noiseSample >> 1) & 1);
+			noiseSample = ((noiseSample >> 1) & 0x3fff) | (bit << 14);
 		}
 	}
 
-	uint8_t dsp_read(uint8_t adr) {
-		return dsp->ram[adr];
+	uint8_t Dsp::dsp_read(uint8_t adr) {
+		return ram[adr];
 	}
 
-	void dsp_write(uint8_t adr, uint8_t val) {
+	void Dsp::dsp_write(uint8_t adr, uint8_t val) {
 		int ch = adr >> 4;
 		switch(adr) {
 			case 0x00: case 0x10: case 0x20: case 0x30: case 0x40: case 0x50: case 0x60: case 0x70: {
-				dsp->channel[ch].volumeL = val;
+				channel[ch].volumeL = val;
 				break;
 			}
 			case 0x01: case 0x11: case 0x21: case 0x31: case 0x41: case 0x51: case 0x61: case 0x71: {
-				dsp->channel[ch].volumeR = val;
+				channel[ch].volumeR = val;
 				break;
 			}
 			case 0x02: case 0x12: case 0x22: case 0x32: case 0x42: case 0x52: case 0x62: case 0x72: {
-				dsp->channel[ch].pitch = (dsp->channel[ch].pitch & 0x3f00) | val;
+				channel[ch].pitch = (channel[ch].pitch & 0x3f00) | val;
 				break;
 			}
 			case 0x03: case 0x13: case 0x23: case 0x33: case 0x43: case 0x53: case 0x63: case 0x73: {
-				dsp->channel[ch].pitch = ((dsp->channel[ch].pitch & 0x00ff) | (val << 8)) & 0x3fff;
+				channel[ch].pitch = ((channel[ch].pitch & 0x00ff) | (val << 8)) & 0x3fff;
 				break;
 			}
 			case 0x04: case 0x14: case 0x24: case 0x34: case 0x44: case 0x54: case 0x64: case 0x74: {
-				dsp->channel[ch].srcn = val;
+				channel[ch].srcn = val;
 				break;
 			}
 			case 0x05: case 0x15: case 0x25: case 0x35: case 0x45: case 0x55: case 0x65: case 0x75: {
-				dsp->channel[ch].adsrRates[0] = (val & 0xf) * 2 + 1;
-				dsp->channel[ch].adsrRates[1] = ((val & 0x70) >> 4) * 2 + 16;
-				dsp->channel[ch].useGain = (val & 0x80) == 0;
+				channel[ch].adsrRates[0] = (val & 0xf) * 2 + 1;
+				channel[ch].adsrRates[1] = ((val & 0x70) >> 4) * 2 + 16;
+				channel[ch].useGain = (val & 0x80) == 0;
 				break;
 			}
 			case 0x06: case 0x16: case 0x26: case 0x36: case 0x46: case 0x56: case 0x66: case 0x76: {
-				dsp->channel[ch].adsrRates[2] = val & 0x1f;
-				dsp->channel[ch].sustainLevel = (val & 0xe0) >> 5;
+				channel[ch].adsrRates[2] = val & 0x1f;
+				channel[ch].sustainLevel = (val & 0xe0) >> 5;
 				break;
 			}
 			case 0x07: case 0x17: case 0x27: case 0x37: case 0x47: case 0x57: case 0x67: case 0x77: {
-				dsp->channel[ch].directGain = (val & 0x80) == 0;
-				dsp->channel[ch].gainMode = (val & 0x60) >> 5;
-				dsp->channel[ch].adsrRates[3] = val & 0x1f;
-				dsp->channel[ch].gainValue = (val & 0x7f) * 16;
-				dsp->channel[ch].gainSustainLevel = (val & 0xe0) >> 5;
+				channel[ch].directGain = (val & 0x80) == 0;
+				channel[ch].gainMode = (val & 0x60) >> 5;
+				channel[ch].adsrRates[3] = val & 0x1f;
+				channel[ch].gainValue = (val & 0x7f) * 16;
+				channel[ch].gainSustainLevel = (val & 0xe0) >> 5;
 				break;
 			}
 			case 0x0c: {
-				dsp->masterVolumeL = val;
+				masterVolumeL = val;
 				break;
 			}
 			case 0x1c: {
-				dsp->masterVolumeR = val;
+				masterVolumeR = val;
 				break;
 			}
 			case 0x2c: {
-				dsp->echoVolumeL = val;
+				echoVolumeL = val;
 				break;
 			}
 			case 0x3c: {
-				dsp->echoVolumeR = val;
+				echoVolumeR = val;
 				break;
 			}
 			case 0x4c: {
 				for(int i = 0; i < 8; i++) {
-					dsp->channel[i].keyOn = val & (1 << i);
+					channel[i].keyOn = val & (1 << i);
 				}
 				break;
 			}
 			case 0x5c: {
 				for(int i = 0; i < 8; i++) {
-					dsp->channel[i].keyOff = val & (1 << i);
+					channel[i].keyOff = val & (1 << i);
 				}
 				break;
 			}
 			case 0x6c: {
-				dsp->reset = val & 0x80;
-				dsp->mute = val & 0x40;
-				dsp->echoWrites = (val & 0x20) == 0;
-				dsp->noiseRate = val & 0x1f;
+				reset = val & 0x80;
+				mute = val & 0x40;
+				echoWrites = (val & 0x20) == 0;
+				noiseRate = val & 0x1f;
 				break;
 			}
 			case 0x7c: {
@@ -545,55 +541,55 @@ namespace LakeSnes
 				break;
 			}
 			case 0x0d: {
-				dsp->feedbackVolume = val;
+				feedbackVolume = val;
 				break;
 			}
 			case 0x2d: {
 				for(int i = 0; i < 8; i++) {
-					dsp->channel[i].pitchModulation = val & (1 << i);
+					channel[i].pitchModulation = val & (1 << i);
 				}
 				break;
 			}
 			case 0x3d: {
 				for(int i = 0; i < 8; i++) {
-					dsp->channel[i].useNoise = val & (1 << i);
+					channel[i].useNoise = val & (1 << i);
 				}
 				break;
 			}
 			case 0x4d: {
 				for(int i = 0; i < 8; i++) {
-					dsp->channel[i].echoEnable = val & (1 << i);
+					channel[i].echoEnable = val & (1 << i);
 				}
 				break;
 			}
 			case 0x5d: {
-				dsp->dirPage = val << 8;
+				dirPage = val << 8;
 				break;
 			}
 			case 0x6d: {
-				dsp->echoBufferAdr = val << 8;
+				echoBufferAdr = val << 8;
 				break;
 			}
 			case 0x7d: {
-				dsp->echoDelay = (val & 0xf) * 512; // 2048-byte steps, stereo sample is 4 bytes
+				echoDelay = (val & 0xf) * 512; // 2048-byte steps, stereo sample is 4 bytes
 				break;
 			}
 			case 0x0f: case 0x1f: case 0x2f: case 0x3f: case 0x4f: case 0x5f: case 0x6f: case 0x7f: {
-				dsp->firValues[ch] = val;
+				firValues[ch] = val;
 				break;
 			}
 		}
-		dsp->ram[adr] = val;
+		ram[adr] = val;
 	}
 
-	void dsp_getSamples(int16_t* sampleData, int samplesPerFrame) {
+	void Dsp::dsp_getSamples(int16_t* sampleData, int samplesPerFrame) {
 		// resample from 534 / 641 samples per frame to wanted value
-		float wantedSamples = (snes->palTiming ? 641.0 : 534.0);
+		float wantedSamples = (config.snes->palTiming ? 641.0 : 534.0);
 		double adder = wantedSamples / samplesPerFrame;
-		double location = dsp->lastFrameBoundary - wantedSamples;
+		double location = lastFrameBoundary - wantedSamples;
 		for(int i = 0; i < samplesPerFrame; i++) {
-			sampleData[i * 2] = dsp->sampleBuffer[(((int) location) & 0x7ff) * 2];
-			sampleData[i * 2 + 1] = dsp->sampleBuffer[(((int) location) & 0x7ff) * 2 + 1];
+			sampleData[i * 2] = sampleBuffer[(((int) location) & 0x7ff) * 2];
+			sampleData[i * 2 + 1] = sampleBuffer[(((int) location) & 0x7ff) * 2 + 1];
 			location += adder;
 		}
 	}

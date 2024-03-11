@@ -1,9 +1,7 @@
-#ifndef LAKESNES_SNES_FORWARD_HPP
-#define LAKESNES_SNES_FORWARD_HPP
+#pragma once
 
 namespace LakeSnes
 {
-	struct Snes;
+	class Snes;
 }
 
-#endif

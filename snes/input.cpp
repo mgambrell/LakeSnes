@@ -1,7 +1,6 @@
 #include "input.h"
 #include "snes.h"
 #include "statehandler.h"
-#include "global.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,40 +10,40 @@
 namespace LakeSnes
 {
 
-	void input_init(int pidx)
+	void Input::input_init(int pidx)
 	{
 		// TODO: handle (where?)
-		input[pidx].pidx = pidx;
-		input[pidx].type = 1;
-		input[pidx].currentState = 0;
+		pidx = pidx;
+		type = 1;
+		currentState = 0;
 		// TODO: handle I/O line (and latching of PPU)
 	}
 
-	void input_free(int pidx) {
+	void Input::input_free() {
 	}
 
-	void input_reset(int pidx) {
-		input[pidx].latchLine = false;
-		input[pidx].latchedState = 0;
+	void Input::input_reset() {
+		latchLine = false;
+		latchedState = 0;
 	}
 
-	void input_handleState(int pidx, StateHandler* sh) {
+	void Input::input_handleState(StateHandler* sh) {
 		// TODO: handle types (switch type on state load?)
-		sh_handleBytes(sh, &input[pidx].type, NULL);
-		sh_handleBools(sh, &input[pidx].latchLine, NULL);
-		sh_handleWords(sh, &input[pidx].currentState, &input[pidx].latchedState, NULL);
+		sh_handleBytes(sh, &type, NULL);
+		sh_handleBools(sh, &latchLine, NULL);
+		sh_handleWords(sh, &currentState, &latchedState, NULL);
 	}
 
-	void input_latch(int pidx, bool value) {
-		input[pidx].latchLine = value;
-		if(input[pidx].latchLine) input[pidx].latchedState = input[pidx].currentState;
+	void Input::input_latch(bool value) {
+		latchLine = value;
+		if(latchLine) latchedState = currentState;
 	}
 
-	uint8_t input_read(int pidx) {
-		if(input[pidx].latchLine) input[pidx].latchedState = input[pidx].currentState;
-		uint8_t ret = input[pidx].latchedState & 1;
-		input[pidx].latchedState >>= 1;
-		input[pidx].latchedState |= 0x8000;
+	uint8_t Input::input_read() {
+		if(latchLine) latchedState = currentState;
+		uint8_t ret = latchedState & 1;
+		latchedState >>= 1;
+		latchedState |= 0x8000;
 		return ret;
 	}
 

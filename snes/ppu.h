@@ -4,6 +4,7 @@
 
 namespace LakeSnes
 {
+	class Snes;
 	struct StateHandler;
 
 	struct BgLayer {
@@ -32,9 +33,42 @@ namespace LakeSnes
 		uint8_t maskLogic;
 	};
 
-	struct Ppu {
+	class Ppu
+	{
+	public:
+
+
+		void ppu_init(Snes* snes);
+		void ppu_free();
+		void ppu_reset();
+		void ppu_handleState(StateHandler* sh);
+		bool ppu_checkOverscan();
+		void ppu_handleVblank();
+		void ppu_handleFrameStart();
+		void ppu_runLine(int line);
+		uint8_t ppu_read(uint8_t adr);
+		void ppu_write(uint8_t adr, uint8_t val);
+		void ppu_latchHV();
+		void ppu_putPixels(uint8_t* pixels);
+
+	private:
+		void ppu_handlePixel(int x, int y);
+		int ppu_getPixel(int x, int y, bool sub, int* r, int* g, int* b);
+		void ppu_handleOPT(int layer, int* lx, int* ly);
+		uint16_t ppu_getOffsetValue(int col, int row);
+		void ppu_getPixelForBgLayer(int x, int y, int layer);
+		void ppu_calculateMode7Starts(int y);
+		int ppu_getPixelForMode7(int x, int layer, bool priority);
+		bool ppu_getWindowState(int layer, int x);
+		void ppu_evaluateSprites(int line);
+		uint16_t ppu_getVramRemap();
+
+		public:
+			struct {
+				Snes* snes;
+			} config;
+
 		// vram access
-		uint16_t vram[0x8000];
 		uint16_t vramPointer;
 		bool vramIncrementOnHigh;
 		uint16_t vramIncrement;
@@ -119,22 +153,14 @@ namespace LakeSnes
 		bool countersLatched;
 		uint8_t ppu1openBus;
 		uint8_t ppu2openBus;
+
+		//vram
+		uint16_t vram[0x8000];
+
 		// pixel buffer (xbgr)
 		// times 2 for even and odd frame
 		uint8_t pixelBuffer[512 * 4 * 239 * 2];
 	};
 
-	void ppu_init();
-	void ppu_free();
-	void ppu_reset();
-	void ppu_handleState(StateHandler* sh);
-	bool ppu_checkOverscan();
-	void ppu_handleVblank();
-	void ppu_handleFrameStart();
-	void ppu_runLine(int line);
-	uint8_t ppu_read(uint8_t adr);
-	void ppu_write(uint8_t adr, uint8_t val);
-	void ppu_latchHV();
-	void ppu_putPixels(uint8_t* pixels);
 
 }

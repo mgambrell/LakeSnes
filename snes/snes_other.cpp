@@ -11,15 +11,13 @@
 #include <string.h>
 #include <stdint.h>
 
-#define snes (&LakeSnes::g_snes)
-
 namespace LakeSnes
 {
 
 	static const int stateVersion = 2;
 	/*
 	1: initial version
-	2: change snes->cycles/syncCycle to uint64
+	2: change cycles/syncCycle to uint64
 	*/
 
 	typedef struct CartHeader {
@@ -53,7 +51,7 @@ namespace LakeSnes
 	static void readHeader(const uint8_t* data, int length, int location, CartHeader* header);
 
 
-	bool snes_loadRom(const uint8_t* data, int length) {
+	bool Snes::snes_loadRom(const uint8_t* data, int length) {
 		// if smaller than smallest possible, don't load
 		if(length < 0x8000) {
 			printf("Failed to load rom: rom to small (%d bytes)\n", length);
@@ -121,60 +119,60 @@ namespace LakeSnes
 			"%s banks: %d, ramsize: %d, coprocessor: %x\n",
 			bankSize == 0x8000 ? "32K" : "64K", newLength / bankSize, headers[used].chips > 0 ? headers[used].ramSize : 0, headers[used].exCoprocessor
 		);
-		cart_load(
+		mycart.cart_load(
 			headers[used].cartType,
 			newData, newLength, headers[used].chips > 0 ? headers[used].ramSize : 0
 		);
 		snes_reset(true); // reset after loading
-		snes->palTiming = headers[used].pal; // set region
+		palTiming = headers[used].pal; // set region
 		free(newData);
 		return true;
 	}
 
-	void snes_setButtonState(int playerNumber, int button, bool pressed) {
+	void Snes::snes_setButtonState(int playerNumber, int button, bool pressed) {
 		// set key in controller
 		if(playerNumber == 1) {
 			if(pressed) {
-				snes->myinput[0].currentState |= 1 << button;
+				myinput[0].currentState |= 1 << button;
 			} else {
-				snes->myinput[1].currentState &= ~(1 << button);
+				myinput[1].currentState &= ~(1 << button);
 			}
 		} else {
 			if(pressed) {
-				snes->myinput[0].currentState |= 1 << button;
+				myinput[0].currentState |= 1 << button;
 			} else {
-				snes->myinput[1].currentState &= ~(1 << button);
+				myinput[1].currentState &= ~(1 << button);
 			}
 		}
 	}
 
-	void snes_setPixels(uint8_t* pixelData) {
+	void Snes::snes_setPixels(uint8_t* pixelData) {
 		// size is 4 (rgba) * 512 (w) * 480 (h)
-		ppu_putPixels(pixelData);
+		myppu.ppu_putPixels(pixelData);
 	}
 
-	void snes_setSamples(int16_t* sampleData, int samplesPerFrame) {
+	void Snes::snes_setSamples(int16_t* sampleData, int samplesPerFrame) {
 		// size is 2 (int16) * 2 (stereo) * samplesPerFrame
 		// sets samples in the sampleData
-		dsp_getSamples(sampleData, samplesPerFrame);
+		myapu.mydsp.dsp_getSamples(sampleData, samplesPerFrame);
 	}
 
-	int snes_saveBattery(uint8_t* data) {
+	int Snes::snes_saveBattery(uint8_t* data) {
 		int size = 0;
-		cart_handleBattery(true, data, &size);
+		mycart.cart_handleBattery(true, data, &size);
 		return size;
 	}
 
-	bool snes_loadBattery(uint8_t* data, int size) {
-		return cart_handleBattery(false, data, &size);
+	bool Snes::snes_loadBattery(uint8_t* data, int size) {
+		return mycart.cart_handleBattery(false, data, &size);
 	}
 
-	int snes_saveState(uint8_t* data) {
+	int Snes::snes_saveState(uint8_t* data) {
 		StateHandler* sh = sh_init(true, NULL, 0);
 		uint32_t id = 0x4653534c; // 'LSSF' LakeSnes State File
 		uint32_t version = stateVersion;
 		sh_handleInts(sh, &id, &version, &version, NULL); // second version to be overridden by length
-		cart_handleTypeState(sh);
+		mycart.cart_handleTypeState(sh);
 		// save data
 		snes_handleState(sh);
 		// store
@@ -185,11 +183,11 @@ namespace LakeSnes
 		return size;
 	}
 
-	bool snes_loadState(uint8_t* data, int size) {
+	bool Snes::snes_loadState(uint8_t* data, int size) {
 		StateHandler* sh = sh_init(false, data, size);
 		uint32_t id = 0, version = 0, length = 0;
 		sh_handleInts(sh, &id, &version, &length, NULL);
-		bool cartMatch = cart_handleTypeState(sh);
+		bool cartMatch = mycart.cart_handleTypeState(sh);
 		if(id != 0x4653534c || version != stateVersion || length != size || !cartMatch) {
 			sh_free(sh);
 			return false;
