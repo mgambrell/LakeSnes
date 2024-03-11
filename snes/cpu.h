@@ -32,15 +32,6 @@ namespace LakeSnes
 			uint16_t high() const { return (uint16_t)(addr+1); }
 		};
 
-
-		Addr24 LameAddr24(uint32_t low, uint32_t high)
-		{
-			Addr24 junk;
-			junk.bank = low>>16;
-			junk.addr = low&0xFFFF;
-			return junk;
-		}
-
 		Addr24 MakeAddr24(uint8_t bank, uint16_t addr)
 		{
 			return Addr24 { bank, 0, addr };
@@ -88,23 +79,6 @@ namespace LakeSnes
 		[[nodiscard]] Addr24 cpu_adrAby(bool write);
 		[[nodiscard]] Addr24 cpu_adrAbl();
 		[[nodiscard]] Addr24 cpu_adrAlx();
-
-		uint32_t _cpu_adrImm(uint32_t* low, bool xFlag);
-		uint32_t _cpu_adrDp(uint32_t* low);
-		uint32_t _cpu_adrDpx(uint32_t* low);
-		uint32_t _cpu_adrDpy(uint32_t* low);
-		uint32_t _cpu_adrIdp(uint32_t* low);
-		uint32_t _cpu_adrIdx(uint32_t* low);
-		uint32_t _cpu_adrIdy(uint32_t* low, bool write);
-		uint32_t _cpu_adrIdl(uint32_t* low);
-		uint32_t _cpu_adrIly(uint32_t* low);
-		uint32_t _cpu_adrSr(uint32_t* low);
-		uint32_t _cpu_adrIsy(uint32_t* low);
-		uint32_t _cpu_adrAbs(uint32_t* low);
-		uint32_t _cpu_adrAbx(uint32_t* low, bool write);
-		uint32_t _cpu_adrAby(uint32_t* low, bool write);
-		uint32_t _cpu_adrAbl(uint32_t* low);
-		uint32_t _cpu_adrAlx(uint32_t* low);
 
 		// opcode functions
 		void cpu_and(Addr24 addr);
