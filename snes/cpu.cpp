@@ -491,7 +491,7 @@ namespace LakeSnes
 		if(intWanted) {
 			// if interrupt detected in 2-cycle implied/accumulator opcode,
 			// idle cycle turns into read from pc
-			cpu_read((k << 16) | pc);
+			cpu_access_new<1,MemOp::Read>(config.snes,MakeAddr24(k,pc));
 		} else {
 			cpu_idle();
 		}
