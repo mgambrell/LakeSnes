@@ -205,7 +205,6 @@ namespace LakeSnes
 		countersLatched = false;
 		ppu1openBus = 0;
 		ppu2openBus = 0;
-		memset(pixelBuffer, 0, sizeof(pixelBuffer));
 	}
 
 	void Ppu::ppu_handleState(StateHandler* sh)
