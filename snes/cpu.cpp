@@ -530,7 +530,7 @@ namespace LakeSnes
 	Addr24 Cpu::cpu_adrIdp() {
 		uint8_t adr = cpu_readOpcode();
 		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
-		uint16_t pointer = cpu_readWord((dp + adr) & 0xffff, (dp + adr + 1) & 0xffff, false);
+		uint16_t pointer = (uint16_t)cpu_access_new<2,MemOp::Read>(config.snes,MakeAddr24(0,dp));
 		return MakeAddr24(db,pointer);
 	}
 
@@ -538,14 +538,14 @@ namespace LakeSnes
 		uint8_t adr = cpu_readOpcode();
 		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
 		cpu_idle();
-		uint16_t pointer = cpu_readWord((dp + adr + x) & 0xffff, (dp + adr + x + 1) & 0xffff, false);
+		uint16_t pointer = (uint16_t)cpu_access_new<2,MemOp::Read>(config.snes,MakeAddr24(0,dp + x));
 		return MakeAddr24(db,pointer);
 	}
 
 	Addr24 Cpu::cpu_adrIdy(bool write) {
 		uint8_t adr = cpu_readOpcode();
 		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
-		uint16_t pointer = cpu_readWord((dp + adr) & 0xffff, (dp + adr + 1) & 0xffff, false);
+		uint16_t pointer = (uint16_t)cpu_access_new<2,MemOp::Read>(config.snes,MakeAddr24(0,dp + adr));
 		// writing opcode or x = 0 or page crossed: 1 extra cycle
 		if(write || !xf || ((pointer >> 8) != ((pointer + y) >> 8))) cpu_idle();
 		return MakeAddr24(db,pointer+y);
