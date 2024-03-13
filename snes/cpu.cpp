@@ -17,17 +17,31 @@ namespace
 		Fetch, Read, Write, DmaRead, DmaWrite
 	};
 
-	template<bool READING> void cpu_access_new_run_cyles_before(LakeSnes::Snes* snes, int CYC)
+	constexpr bool MemOp_IsReadType(MemOp OP)
 	{
-		if(READING)
+		return (OP == MemOp::Read || OP == MemOp::Fetch || OP == MemOp::DmaRead);
+	}
+
+	constexpr bool MemOp_IsDmaType(MemOp OP)
+	{
+		return (OP == MemOp::DmaRead || OP == MemOp::DmaWrite);
+	}
+
+	template<MemOp OP> void cpu_access_new_run_cyles_before(LakeSnes::Snes* snes, int CYC)
+	{
+		if(MemOp_IsDmaType(OP)) return;
+		if(MemOp_IsReadType(OP))
+		{
 			CYC = CYC-4;
+		}
 		snes->mydma.dma_handleDma(CYC);
 		snes->snes_runCycles(CYC);
 	}
 
-	template<bool READING> void cpu_access_new_run_cyles_after(LakeSnes::Snes* snes)
+	template<MemOp OP> void cpu_access_new_run_cyles_after(LakeSnes::Snes* snes)
 	{
-		if(READING)
+		if(MemOp_IsDmaType(OP)) return;
+		if(MemOp_IsReadType(OP))
 		{
 			snes->mydma.dma_handleDma(4);
 			snes->snes_runCycles(4);
@@ -40,8 +54,8 @@ namespace
 		//TODO: handle open bus saving
 		
 		constexpr bool WORDSIZED = (BYTES==2);
-		constexpr bool READTYPE = (OP == MemOp::Read || OP == MemOp::Fetch || OP == MemOp::DmaRead);
-		constexpr bool DMATYPE = (OP == MemOp::DmaRead || OP == MemOp::DmaWrite);
+		constexpr bool READTYPE = MemOp_IsReadType(OP);
+		constexpr bool DMATYPE = MemOp_IsDmaType(OP);
 
 		int rv = 0;
 		int at = 0;
@@ -89,7 +103,7 @@ namespace
 		//Bank 7E/7F is always patched on top by the system
 		if((b>>1)==0x3F)
 		{
-			cpu_access_new_run_cyles_before<READTYPE>(snes, 8);
+			cpu_access_new_run_cyles_before<OP>(snes, 8);
 			goto CASE_WRAM;
 		}
 
@@ -100,12 +114,12 @@ namespace
 		{
 			if(a & 0x800000)
 			{
-				cpu_access_new_run_cyles_before<READTYPE>(snes, snes->fastMem ? 6 : 8);
+				cpu_access_new_run_cyles_before<OP>(snes, snes->fastMem ? 6 : 8);
 				goto CASE_CARTSPECIAL_RIGHTHALF;
 			}
 			else
 			{
-				cpu_access_new_run_cyles_before<READTYPE>(snes, 8);
+				cpu_access_new_run_cyles_before<OP>(snes, 8);
 				goto CASE_CARTSPECIAL_LEFTHALF;
 			}
 		}
@@ -119,18 +133,18 @@ namespace
 			{
 				if(a & 0x800000)
 				{
-					cpu_access_new_run_cyles_before<READTYPE>(snes, snes->fastMem ? 6 : 8);
+					cpu_access_new_run_cyles_before<OP>(snes, snes->fastMem ? 6 : 8);
 					goto CASE_CARTSPECIAL_RIGHTHALF;
 				}
 				else
 				{
-					cpu_access_new_run_cyles_before<READTYPE>(snes, 8);
+					cpu_access_new_run_cyles_before<OP>(snes, 8);
 					goto CASE_CARTSPECIAL_LEFTHALF;
 				}
 			}
 			else
 			{
-				cpu_access_new_run_cyles_before<READTYPE>(snes, 8);
+				cpu_access_new_run_cyles_before<OP>(snes, 8);
 				goto CASE_LOWRAM;
 			}
 		}
@@ -139,13 +153,13 @@ namespace
 		//00-3f,80-bf:2000-3fff,4200-5fff
 		if((a - 0x4000) & 0x7e00) 
 		{
-			cpu_access_new_run_cyles_before<READTYPE>(snes, 8);
+			cpu_access_new_run_cyles_before<OP>(snes, 8);
 			goto CASE_IOBLOCK;
 		}
 
 		//..and the remainder is this
 		//00-3f,80-bf:4000-41ff
-		cpu_access_new_run_cyles_before<READTYPE>(snes, 12);
+		cpu_access_new_run_cyles_before<OP>(snes, 12);
 		goto CASE_IOBLOCK;
 
 		//.............................
@@ -189,7 +203,7 @@ namespace
 
 	CASE_END:
 
-		cpu_access_new_run_cyles_after<READTYPE>(snes);
+		cpu_access_new_run_cyles_after<OP>(snes);
 
 		return rv;
 	}

@@ -254,13 +254,13 @@ namespace LakeSnes
 				// load address, repCount, and indirect address if needed
 				snes->snes_runCycles(8);
 				channel[i].tableAdr = channel[i].aAdr;
-				channel[i].repCount = snes->snes_read((channel[i].aBank << 16) | channel[i].tableAdr++);
+				channel[i].repCount = snes->mycpu.dma_read(channel[i].aBank, channel[i].tableAdr++);
 				if(channel[i].repCount == 0) channel[i].terminated = true;
 				if(channel[i].indirect) {
 					snes->snes_runCycles(8);
-					channel[i].size = snes->snes_read((channel[i].aBank << 16) | channel[i].tableAdr++);
+					channel[i].size = snes->mycpu.dma_read(channel[i].aBank, channel[i].tableAdr++);
 					snes->snes_runCycles(8);
-					channel[i].size |= snes->snes_read((channel[i].aBank << 16) | channel[i].tableAdr++) << 8;
+					channel[i].size |= snes->mycpu.dma_read(channel[i].aBank, channel[i].tableAdr++) << 8;
 				}
 				channel[i].doTransfer = true;
 			}
@@ -348,9 +348,9 @@ namespace LakeSnes
 		));
 		if(fromB) {
 			uint8_t val = validB ? snes->snes_readBBus(bAdr) : snes->openBus;
-			if(validA) snes->snes_write((aBank << 16) | aAdr, val);
+			if(validA) snes->mycpu.dma_write(aBank, aAdr, val);
 		} else {
-			uint8_t val = validA ? snes->snes_read((aBank << 16) | aAdr) : snes->openBus;
+			uint8_t val = validA ? snes->mycpu.dma_read(aBank, aAdr) : snes->openBus;
 			if(validB) snes->snes_writeBBus(bAdr, val);
 		}
 	}
