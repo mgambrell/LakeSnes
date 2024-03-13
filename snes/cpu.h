@@ -128,29 +128,18 @@ namespace LakeSnes
 		uint8_t k; // program bank (PB)
 		uint8_t db; // data bank (B)
 		// flags
-		uint8_t flags;
-		bool c() const { return !!(flags&0x01); }
-		bool z() const { return !!(flags&0x02); }
-		bool i() const { return !!(flags&0x04); }
-		bool d() const { return !!(flags&0x08); }
-		bool xf() const { return !!(flags&0x10); }
-		bool mf() const { return !!(flags&0x20); }
-		bool v() const { return !!(flags&0x40); }
-		bool n() const { return !!(flags&0x80); }
-
-		void set_c(bool b) { if(b) flags|=0x01; else flags&=~0x01; }
-		void set_z(bool b) { if(b) flags|=0x02; else flags&=~0x02; }
-		void set_i(bool b) { if(b) flags|=0x04; else flags&=~0x04; }
-		void set_d(bool b) { if(b) flags|=0x08; else flags&=~0x08; }
-		void set_xf(bool b) { if(b) flags|=0x10; else flags&=~0x10; }
-		void set_mf(bool b) { if(b) flags|=0x20; else flags&=~0x20; }
-		void set_v(bool b) { if(b) flags|=0x40; else flags&=~0x40; }
-		void set_n(bool b) { if(b) flags|=0x80; else flags&=~0x80; }
-
+		bool c;
+		bool z;
+		bool v;
+		bool n;
+		bool i;
+		bool d;
+		bool _xf;
+		bool _mf;
 		bool e;
 		// power state (WAI/STP)
 		bool waiting;
-		bool stopped; //TODO: no need for this
+		bool stopped;
 		// interrupts
 		bool irqWanted;
 		bool nmiWanted;
