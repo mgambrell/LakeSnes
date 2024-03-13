@@ -22,6 +22,10 @@ namespace LakeSnes
 
 		void cpu_checkInt();
 
+		//I know, it's not logical to have these on the cpu. hang on.
+		uint8_t dma_read(uint8_t bank, uint16_t adr);
+		void dma_write(uint8_t bank, uint16_t adr, uint8_t val);
+
 	private:
 
 		void cpu_idle();

@@ -314,7 +314,7 @@ namespace LakeSnes
 				channel[i].repCount--;
 				channel[i].doTransfer = channel[i].repCount & 0x80;
 				snes->snes_runCycles(8);
-				uint8_t newRepCount = snes->snes_read((channel[i].aBank << 16) | channel[i].tableAdr);
+				uint8_t newRepCount = snes->mycpu.dma_read(channel[i].aBank, channel[i].tableAdr);
 				if((channel[i].repCount & 0x7f) == 0) {
 					channel[i].repCount = newRepCount;
 					channel[i].tableAdr++;
@@ -324,10 +324,10 @@ namespace LakeSnes
 							channel[i].size = 0;
 						} else {
 							snes->snes_runCycles(8);
-							channel[i].size = snes->snes_read((channel[i].aBank << 16) | channel[i].tableAdr++);
+							channel[i].size = snes->mycpu.dma_read(channel[i].aBank, channel[i].tableAdr++);
 						}
 						snes->snes_runCycles(8);
-						channel[i].size |= snes->snes_read((channel[i].aBank << 16) | channel[i].tableAdr++) << 8;
+						channel[i].size |= snes->mycpu.dma_read(channel[i].aBank, channel[i].tableAdr++) << 8;
 					}
 					if(channel[i].repCount == 0) channel[i].terminated = true;
 					channel[i].doTransfer = true;

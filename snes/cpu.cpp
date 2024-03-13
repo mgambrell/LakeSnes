@@ -1,3 +1,5 @@
+#include "conf.h"
+
 #include "cpu.h"
 #include "statehandler.h"
 #include "snes.h"
@@ -8,20 +10,11 @@
 #include <string.h>
 #include <stdint.h>
 
-#ifdef _MSC_VER
-#define LAKESNES_UNREACHABLE __assume(false)
-#define LAKENES_NOINLINE __declspec(noinline)
-#else
-#define LAKESNES_UNREACHABLE __builtin_unreachable()
-#define LAKENES_NOINLINE __attribute__((noinline)) 
-#endif
-#define LAKESNES_UNREACHABLE_DEFAULT default: LAKESNES_UNREACHABLE; break;
-
 namespace
 {
 	enum class MemOp
 	{
-		Fetch, Read, Write
+		Fetch, Read, Write, DmaRead, DmaWrite
 	};
 
 	template<bool READING> void cpu_access_new_run_cyles_before(LakeSnes::Snes* snes, int CYC)
@@ -47,7 +40,8 @@ namespace
 		//TODO: handle open bus saving
 		
 		constexpr bool WORDSIZED = (BYTES==2);
-		constexpr bool READTYPE = (OP == MemOp::Read || OP == MemOp::Fetch);
+		constexpr bool READTYPE = (OP == MemOp::Read || OP == MemOp::Fetch || OP == MemOp::DmaRead);
+		constexpr bool DMATYPE = (OP == MemOp::DmaRead || OP == MemOp::DmaWrite);
 
 		int rv = 0;
 		int at = 0;
@@ -204,6 +198,17 @@ namespace
 
 namespace LakeSnes
 {
+
+	//I know, it's not logical to have these on the cpu. hang on.
+	uint8_t Cpu::dma_read(uint8_t bank, uint16_t adr)
+	{
+		return cpu_access_new<1,MemOp::DmaRead>(config.snes,MakeAddr24(bank,adr));
+	}
+
+	void Cpu::dma_write(uint8_t bank, uint16_t adr, uint8_t val)
+	{
+		cpu_access_new<1,MemOp::DmaWrite>(config.snes,MakeAddr24(bank,adr),val);
+	}
 
 	void Cpu::cpu_init(Snes* snes) {
 		config.snes = snes;
