@@ -291,14 +291,7 @@ namespace LakeSnes
 			dp = 0;
 			k = 0;
 			db = 0;
-			c = false;
-			z = false;
-			v = false;
-			n = false;
-			i = false;
-			d = false;
-			_xf = false;
-			_mf = false;
+			flags = 0;
 			e = false;
 			irqWanted = false;
 		}
@@ -312,7 +305,7 @@ namespace LakeSnes
 
 	void Cpu::cpu_handleState(StateHandler* sh) {
 		sh_handleBools(sh,
-			&c, &z, &v, &n, &i, &d, &_xf, &_mf, &e, &waiting, &stopped,
+			&e, &waiting, &stopped,
 			&irqWanted, &nmiWanted, &intWanted, &intDelay, &resetWanted, NULL
 		);
 		sh_handleBytes(sh, &k, &db, NULL);
@@ -330,8 +323,8 @@ namespace LakeSnes
 			cpu_read(MakeAddr24(0, 0x100 | (sp-- & 0xff)));
 			sp = (sp & 0xff) | 0x100;
 			e = true;
-			i = true;
-			d = false;
+			set_i(true);
+			set_d(true);
 			cpu_setFlags(cpu_getFlags()); // updates x and m flags, clears upper half of x and y if needed
 			k = 0;
 			pc = cpu_readWord(MakeAddr24(0,0xfffc),false);
@@ -404,7 +397,7 @@ namespace LakeSnes
 	}
 
 	void Cpu::cpu_checkInt() {
-		intWanted = (nmiWanted || (irqWanted && !i)) && !intDelay;
+		intWanted = (nmiWanted || (irqWanted && !i())) && !intDelay;
 		intDelay = false;
 	}
 
@@ -422,32 +415,17 @@ namespace LakeSnes
 	}
 
 	uint8_t Cpu::cpu_getFlags() {
-		uint8_t val = n << 7;
-		val |= v << 6;
-		val |= _mf << 5;
-		val |= _xf << 4;
-		val |= d << 3;
-		val |= i << 2;
-		val |= z << 1;
-		val |= c;
-		return val;
+		return flags;
 	}
 
 	void Cpu::cpu_setFlags(uint8_t val) {
-		n = val & 0x80;
-		v = val & 0x40;
-		_mf = val & 0x20;
-		_xf = val & 0x10;
-		d = val & 8;
-		i = val & 4;
-		z = val & 2;
-		c = val & 1;
+		flags = val;
 		if(e) {
-			_mf = true;
-			_xf = true;
+			set_mf(true);
+			set_xf(true);
 			sp = (sp & 0xff) | 0x100;
 		}
-		if(_xf) {
+		if(xf()) {
 			x &= 0xff;
 			y &= 0xff;
 		}
@@ -455,11 +433,11 @@ namespace LakeSnes
 
 	void Cpu::cpu_setZN(uint16_t value, bool byte) {
 		if(byte) {
-			z = (value & 0xff) == 0;
-			n = value & 0x80;
+			set_z( (value & 0xff) == 0 );
+			set_n( value & 0x80 );
 		} else {
-			z = value == 0;
-			n = value & 0x8000;
+			set_z( value == 0 );
+			set_n( value & 0x8000 );
 		}
 	}
 
@@ -525,8 +503,8 @@ namespace LakeSnes
 		cpu_pushByte(k);
 		cpu_pushWord(pc, false);
 		cpu_pushByte(cpu_getFlags());
-		i = true;
-		d = false;
+		set_i(true);
+		set_d(false);
 		k = 0;
 		intWanted = false;
 		if(nmiWanted) {
@@ -718,22 +696,22 @@ namespace LakeSnes
 				cpu_checkInt();
 				uint8_t value = cpu_read(addr);
 				int result = 0;
-				if(d) {
-					result = (a & 0xf) + (value & 0xf) + c;
+				if(d()) {
+					result = (a & 0xf) + (value & 0xf) + (c()?1:0);
 					if(result > 0x9) result = ((result + 0x6) & 0xf) + 0x10;
 					result = (a & 0xf0) + (value & 0xf0) + result;
 				} else {
-					result = (a & 0xff) + value + c;
+					result = (a & 0xff) + value + (c()?1:0);
 				}
-				v = (a & 0x80) == (value & 0x80) && (value & 0x80) != (result & 0x80);
-				if(d && result > 0x9f) result += 0x60;
-				c = result > 0xff;
+				set_v((a & 0x80) == (value & 0x80) && (value & 0x80) != (result & 0x80));
+				if(d() && result > 0x9f) result += 0x60;
+				set_c(result > 0xff);
 				a = (a & 0xff00) | (result & 0xff);
 			} else {
 				uint16_t value = cpu_readWord(addr, true);
 				int result = 0;
-				if(d) {
-					result = (a & 0xf) + (value & 0xf) + c;
+				if(d()) {
+					result = (a & 0xf) + (value & 0xf) + (c()?1:0);
 					if(result > 0x9) result = ((result + 0x6) & 0xf) + 0x10;
 					result = (a & 0xf0) + (value & 0xf0) + result;
 					if(result > 0x9f) result = ((result + 0x60) & 0xff) + 0x100;
@@ -741,11 +719,11 @@ namespace LakeSnes
 					if(result > 0x9ff) result = ((result + 0x600) & 0xfff) + 0x1000;
 					result = (a & 0xf000) + (value & 0xf000) + result;
 				} else {
-					result = a + value + c;
+					result = a + value + (c()?1:0);
 				}
-				v = (a & 0x8000) == (value & 0x8000) && (value & 0x8000) != (result & 0x8000);
-				if(d && result > 0x9fff) result += 0x6000;
-				c = result > 0xffff;
+				set_v((a & 0x8000) == (value & 0x8000) && (value & 0x8000) != (result & 0x8000));
+				if(d() && result > 0x9fff) result += 0x6000;
+				set_c(result > 0xffff);
 				a = result;
 			}
 			cpu_setZN(a, MF);
@@ -756,22 +734,22 @@ namespace LakeSnes
 				cpu_checkInt();
 				uint8_t value = cpu_read(addr) ^ 0xff;
 				int result = 0;
-				if(d) {
-					result = (a & 0xf) + (value & 0xf) + c;
+				if(d()) {
+					result = (a & 0xf) + (value & 0xf) + (c()?1:0);
 					if(result < 0x10) result = (result - 0x6) & ((result - 0x6 < 0) ? 0xf : 0x1f);
 					result = (a & 0xf0) + (value & 0xf0) + result;
 				} else {
-					result = (a & 0xff) + value + c;
+					result = (a & 0xff) + value + (c()?1:0);
 				}
-				v = (a & 0x80) == (value & 0x80) && (value & 0x80) != (result & 0x80);
-				if(d && result < 0x100) result -= 0x60;
-				c = result > 0xff;
+				set_v((a & 0x80) == (value & 0x80) && (value & 0x80) != (result & 0x80));
+				if(d() && result < 0x100) result -= 0x60;
+				set_c(result > 0xff);
 				a = (a & 0xff00) | (result & 0xff);
 			} else {
 				uint16_t value = cpu_readWord(addr, true) ^ 0xffff;
 				int result = 0;
-				if(d) {
-					result = (a & 0xf) + (value & 0xf) + c;
+				if(d()) {
+					result = (a & 0xf) + (value & 0xf) + (c()?1:0);
 					if(result < 0x10) result = (result - 0x6) & ((result - 0x6 < 0) ? 0xf : 0x1f);
 					result = (a & 0xf0) + (value & 0xf0) + result;
 					if(result < 0x100) result = (result - 0x60) & ((result - 0x60 < 0) ? 0xff : 0x1ff);
@@ -779,11 +757,11 @@ namespace LakeSnes
 					if(result < 0x1000) result = (result - 0x600) & ((result - 0x600 < 0) ? 0xfff : 0x1fff);
 					result = (a & 0xf000) + (value & 0xf000) + result;
 				} else {
-					result = a + value + c;
+					result = a + value + (c()?1:0);
 				}
-				v = (a & 0x8000) == (value & 0x8000) && (value & 0x8000) != (result & 0x8000);
-				if(d && result < 0x10000) result -= 0x6000;
-				c = result > 0xffff;
+				set_v((a & 0x8000) == (value & 0x8000) && (value & 0x8000) != (result & 0x8000));
+				if(d() && result < 0x10000) result -= 0x6000;
+				set_c(result > 0xffff);
 				a = result;
 			}
 			cpu_setZN(a, MF);
@@ -795,11 +773,11 @@ namespace LakeSnes
 				cpu_checkInt();
 				uint8_t value = cpu_read(addr) ^ 0xff;
 				result = (a & 0xff) + value + 1;
-				c = result > 0xff;
+				set_c(result > 0xff);
 			} else {
 				uint16_t value = cpu_readWord(addr, true) ^ 0xffff;
 				result = a + value + 1;
-				c = result > 0xffff;
+				set_c(result > 0xffff);
 			}
 			cpu_setZN(result, MF);
 		}
@@ -810,11 +788,11 @@ namespace LakeSnes
 				cpu_checkInt();
 				uint8_t value = cpu_read(addr) ^ 0xff;
 				result = (x & 0xff) + value + 1;
-				c = result > 0xff;
+				set_c(result > 0xff);
 			} else {
 				uint16_t value = cpu_readWord(addr, true) ^ 0xffff;
 				result = x + value + 1;
-				c = result > 0xffff;
+				set_c(result > 0xffff);
 			}
 			cpu_setZN(result, XF);
 		}
@@ -825,11 +803,11 @@ namespace LakeSnes
 				cpu_checkInt();
 				uint8_t value = cpu_read(addr) ^ 0xff;
 				result = (y & 0xff) + value + 1;
-				c = result > 0xff;
+				set_c(result > 0xff);
 			} else {
 				uint16_t value = cpu_readWord(addr, true) ^ 0xffff;
 				result = y + value + 1;
-				c = result > 0xffff;
+				set_c(result > 0xffff);
 			}
 			cpu_setZN(result, XF);
 		}
@@ -839,15 +817,15 @@ namespace LakeSnes
 				cpu_checkInt();
 				uint8_t value = cpu_read(addr);
 				uint8_t result = (a & 0xff) & value;
-				z = result == 0;
-				n = value & 0x80;
-				v = value & 0x40;
+				set_z(result == 0);
+				set_n(!!(value & 0x80));
+				set_v(!!(value & 0x40));
 			} else {
 				uint16_t value = cpu_readWord(addr, true);
 				uint16_t result = a & value;
-				z = result == 0;
-				n = value & 0x8000;
-				v = value & 0x4000;
+				set_z(result == 0);
+				set_n(!!(value & 0x8000));
+				set_v(!!(value & 0x4000));
 			}
 		}
 
@@ -924,32 +902,32 @@ namespace LakeSnes
 				uint8_t value = cpu_read(addr);
 				cpu_idle();
 				carry = value & 1;
-				result = (value >> 1) | (c << 7);
+				result = (value >> 1) | ((c()?1:0) << 7);
 				cpu_checkInt();
 				cpu_write(addr, result);
 			} else {
 				uint16_t value = cpu_readWord(addr, false);
 				cpu_idle();
 				carry = value & 1;
-				result = (value >> 1) | (c << 15);
+				result = (value >> 1) | ((c()?1:0) << 15);
 				cpu_writeWord(addr, result, true, true);
 			}
 			cpu_setZN(result, MF);
-			c = carry;
+			set_c(carry);
 		}
 
 		void cpu_rol(Addr24 addr) {
 			int result = 0;
 			if(MF) {
-				result = (cpu_read(addr) << 1) | c;
+				result = (cpu_read(addr) << 1) | (c()?1:0);
 				cpu_idle();
-				c = result & 0x100;
+				set_c(!!(result & 0x100));
 				cpu_checkInt();
 				cpu_write(addr, result);
 			} else {
-				result = (cpu_readWord(addr, false) << 1) | c;
+				result = (cpu_readWord(addr, false) << 1) | (c()?1:0);
 				cpu_idle();
-				c = result & 0x10000;
+				set_c(!!(result & 0x10000));
 				cpu_writeWord(addr, result, true, true);
 			}
 			cpu_setZN(result, MF);
@@ -960,14 +938,14 @@ namespace LakeSnes
 			if(MF) {
 				uint8_t value = cpu_read(addr);
 				cpu_idle();
-				c = value & 1;
+				set_c(!!(value & 1));
 				result = value >> 1;
 				cpu_checkInt();
 				cpu_write(addr, result);
 			} else {
 				uint16_t value = cpu_readWord(addr, false);
 				cpu_idle();
-				c = value & 1;
+				set_c(!!(value & 1));
 				result = value >> 1;
 				cpu_writeWord(addr, result, true, true);
 			}
@@ -979,13 +957,13 @@ namespace LakeSnes
 			if(MF) {
 				result = cpu_read(addr) << 1;
 				cpu_idle();
-				c = result & 0x100;
+				set_c(!!(result & 0x100));
 				cpu_checkInt();
 				cpu_write(addr, result);
 			} else {
 				result = cpu_readWord(addr, false) << 1;
 				cpu_idle();
-				c = result & 0x10000;
+				set_c(!!(result & 0x10000));
 				cpu_writeWord(addr, result, true, true);
 			}
 			cpu_setZN(result, MF);
@@ -1025,13 +1003,13 @@ namespace LakeSnes
 			if(MF) {
 				uint8_t value = cpu_read(addr);
 				cpu_idle();
-				z = ((a & 0xff) & value) == 0;
+				set_z(((a & 0xff) & value) == 0);
 				cpu_checkInt();
 				cpu_write(addr, value | (a & 0xff));
 			} else {
 				uint16_t value = cpu_readWord(addr, false);
 				cpu_idle();
-				z = (a & value) == 0;
+				set_z((a & value) == 0);
 				cpu_writeWord(addr, value | a, true, true);
 			}
 		}
@@ -1040,13 +1018,13 @@ namespace LakeSnes
 			if(MF) {
 				uint8_t value = cpu_read(addr);
 				cpu_idle();
-				z = ((a & 0xff) & value) == 0;
+				set_z(((a & 0xff) & value) == 0);
 				cpu_checkInt();
 				cpu_write(addr, value & ~(a & 0xff));
 			} else {
 				uint16_t value = cpu_readWord(addr, false);
 				cpu_idle();
-				z = (a & value) == 0;
+				set_z((a & value) == 0);
 				cpu_writeWord(addr, value & ~a, true, true);
 			}
 		}
@@ -1060,8 +1038,8 @@ namespace LakeSnes
 					if (!e) cpu_pushByte(k);
 					cpu_pushWord(pc, false);
 					cpu_pushByte(cpu_getFlags());
-					i = true;
-					d = false;
+					set_i(true);
+					set_d(false);
 					k = 0;
 					pc = cpu_readWord(MakeAddr24(0,vector),true);
 					break;
@@ -1077,8 +1055,8 @@ namespace LakeSnes
 					if (!e) cpu_pushByte(k);
 					cpu_pushWord(pc, false);
 					cpu_pushByte(cpu_getFlags());
-					i = true;
-					d = false;
+					set_i(true);
+					set_d(false);
 					k = 0;
 					pc = cpu_readWord(MakeAddr24(0,vector),true);
 					break;
@@ -1122,10 +1100,10 @@ namespace LakeSnes
 				case 0x0a: { // asla imp
 					cpu_adrImp();
 					if(MF) {
-						c = a & 0x80;
+						set_c(a & 0x80);
 						a = (a & 0xff00) | ((a << 1) & 0xff);
 					} else {
-						c = a & 0x8000;
+						set_c(a & 0x8000);
 						a <<= 1;
 					}
 					cpu_setZN(a, MF);
@@ -1157,7 +1135,7 @@ namespace LakeSnes
 					break;
 				}
 				case 0x10: { // bpl rel
-					cpu_doBranch(!n);
+					cpu_doBranch(!n());
 					break;
 				}
 				case 0x11: { // ora idy(r)
@@ -1197,7 +1175,7 @@ namespace LakeSnes
 				}
 				case 0x18: { // clc imp
 					cpu_adrImp();
-					c = false;
+					set_c(false);
 					break;
 				}
 				case 0x19: { // ora aby(r)
@@ -1301,12 +1279,12 @@ namespace LakeSnes
 				}
 				case 0x2a: { // rola imp
 					cpu_adrImp();
-					int result = (a << 1) | c;
+					int result = (a << 1) | (c()?1:0);
 					if(MF) {
-						c = result & 0x100;
+						set_c(!!(result & 0x100));
 						a = (a & 0xff00) | (result & 0xff);
 					} else {
-						c = result & 0x10000;
+						set_c(!!(result & 0x10000));
 						a = result;
 					}
 					cpu_setZN(a, MF);
@@ -1340,7 +1318,7 @@ namespace LakeSnes
 					break;
 				}
 				case 0x30: { // bmi rel
-					cpu_doBranch(n);
+					cpu_doBranch(n());
 					break;
 				}
 				case 0x31: { // and idy(r)
@@ -1380,7 +1358,7 @@ namespace LakeSnes
 				}
 				case 0x38: { // sec imp
 					cpu_adrImp();
-					c = true;
+					set_c(true);
 					break;
 				}
 				case 0x39: { // and aby(r)
@@ -1500,7 +1478,7 @@ namespace LakeSnes
 				}
 				case 0x4a: { // lsra imp
 					cpu_adrImp();
-					c = a & 1;
+					set_c(!!(a & 1));
 					if(MF) {
 						a = (a & 0xff00) | ((a >> 1) & 0x7f);
 					} else {
@@ -1535,7 +1513,7 @@ namespace LakeSnes
 					break;
 				}
 				case 0x50: { // bvc rel
-					cpu_doBranch(!v);
+					cpu_doBranch(!v());
 					break;
 				}
 				case 0x51: { // eor idy(r)
@@ -1590,7 +1568,7 @@ namespace LakeSnes
 				}
 				case 0x58: { // cli imp
 					cpu_adrImp();
-					i = false;
+					set_i(false);
 					break;
 				}
 				case 0x59: { // eor aby(r)
@@ -1699,13 +1677,13 @@ namespace LakeSnes
 				}
 				case 0x6a: { // rora imp
 					cpu_adrImp();
-					bool carry = a & 1;
+					bool carry = !!(a & 1);
 					if(MF) {
-						a = (a & 0xff00) | ((a >> 1) & 0x7f) | (c << 7);
+						a = (a & 0xff00) | ((a >> 1) & 0x7f) | ((c()?1:0) << 7);
 					} else {
-						a = (a >> 1) | (c << 15);
+						a = (a >> 1) | ((c()?1:0) << 15);
 					}
-					c = carry;
+					set_c(carry);
 					cpu_setZN(a, MF);
 					break;
 				}
@@ -1738,7 +1716,7 @@ namespace LakeSnes
 					break;
 				}
 				case 0x70: { // bvs rel
-					cpu_doBranch(v);
+					cpu_doBranch(v());
 					break;
 				}
 				case 0x71: { // adc idy(r)
@@ -1778,7 +1756,7 @@ namespace LakeSnes
 				}
 				case 0x78: { // sei imp
 					cpu_adrImp();
-					i = true;
+					set_i(true);
 					break;
 				}
 				case 0x79: { // adc aby(r)
@@ -1879,10 +1857,10 @@ namespace LakeSnes
 					if(MF) {
 						cpu_checkInt();
 						uint8_t result = (a & 0xff) & cpu_readOpcode();
-						z = result == 0;
+						set_z(result == 0);
 					} else {
 						uint16_t result = a & cpu_readOpcodeWord(true);
-						z = result == 0;
+						set_z(result == 0);
 					}
 					break;
 				}
@@ -1923,7 +1901,7 @@ namespace LakeSnes
 					break;
 				}
 				case 0x90: { // bcc rel
-					cpu_doBranch(!c);
+					cpu_doBranch(!c());
 					break;
 				}
 				case 0x91: { // sta idy
@@ -2105,7 +2083,7 @@ namespace LakeSnes
 					break;
 				}
 				case 0xb0: { // bcs rel
-					cpu_doBranch(c);
+					cpu_doBranch(c());
 					break;
 				}
 				case 0xb1: { // lda idy(r)
@@ -2145,7 +2123,7 @@ namespace LakeSnes
 				}
 				case 0xb8: { // clv imp
 					cpu_adrImp();
-					v = false;
+					set_v(false);
 					break;
 				}
 				case 0xb9: { // lda aby(r)
@@ -2287,7 +2265,7 @@ namespace LakeSnes
 					break;
 				}
 				case 0xd0: { // bne rel
-					cpu_doBranch(!z);
+					cpu_doBranch(!z());
 					break;
 				}
 				case 0xd1: { // cmp idy(r)
@@ -2327,7 +2305,7 @@ namespace LakeSnes
 				}
 				case 0xd8: { // cld imp
 					cpu_adrImp();
-					d = false;
+					set_d(false);
 					break;
 				}
 				case 0xd9: { // cmp aby(r)
@@ -2466,7 +2444,7 @@ namespace LakeSnes
 					break;
 				}
 				case 0xf0: { // beq rel
-					cpu_doBranch(z);
+					cpu_doBranch(z());
 					break;
 				}
 				case 0xf1: { // sbc idy(r)
@@ -2505,7 +2483,7 @@ namespace LakeSnes
 				}
 				case 0xf8: { // sed imp
 					cpu_adrImp();
-					d = true;
+					set_d(true);
 					break;
 				}
 				case 0xf9: { // sbc aby(r)
@@ -2527,8 +2505,8 @@ namespace LakeSnes
 				}
 				case 0xfb: { // xce imp
 					cpu_adrImp();
-					bool temp = c;
-					c = e;
+					bool temp = c();
+					set_c(e);
 					e = temp;
 					cpu_setFlags(cpu_getFlags()); // updates x and m flags, clears upper half of x and y if needed
 					break;
@@ -2564,16 +2542,24 @@ namespace LakeSnes
 
 	void Cpu::cpu_doOpcode(uint8_t opcode)
 	{
-		if(_xf)
-			if(_mf)
-				((TCpu<true,true>*)this)->_cpu_doOpcode(opcode);
-			else 
-				((TCpu<true,false>*)this)->_cpu_doOpcode(opcode);
-		else 
-			if(_mf)
-				((TCpu<false,true>*)this)->_cpu_doOpcode(opcode);
-			else 
+		switch(flags&0x30)
+		{
+			case 0x00:
 				((TCpu<false,false>*)this)->_cpu_doOpcode(opcode);
+				break;
+			
+			case 0x10:
+				((TCpu<true,false>*)this)->_cpu_doOpcode(opcode);
+				break;
+
+			case 0x20:
+				((TCpu<false,true>*)this)->_cpu_doOpcode(opcode);
+				break;
+
+			case 0x30:
+				((TCpu<true,true>*)this)->_cpu_doOpcode(opcode);
+				break;
+		}
 	}
 
 }
