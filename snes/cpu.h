@@ -20,7 +20,6 @@ namespace LakeSnes
 		void cpu_nmi();
 		void cpu_setIrq(bool state);
 
-		uint8_t cpu_read(uint32_t adr);
 		void cpu_checkInt();
 
 	private:

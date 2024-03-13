@@ -251,11 +251,11 @@ namespace LakeSnes
 		if(resetWanted) {
 			resetWanted = false;
 			// reset: brk/interrupt without writes
-			cpu_read((k << 16) | pc);
+			cpu_read(MakeAddr24(k,pc));
 			cpu_idle();
-			cpu_read(0x100 | (sp-- & 0xff));
-			cpu_read(0x100 | (sp-- & 0xff));
-			cpu_read(0x100 | (sp-- & 0xff));
+			cpu_read(MakeAddr24(0, 0x100 | (sp-- & 0xff)));
+			cpu_read(MakeAddr24(0, 0x100 | (sp-- & 0xff)));
+			cpu_read(MakeAddr24(0, 0x100 | (sp-- & 0xff)));
 			sp = (sp & 0xff) | 0x100;
 			e = true;
 			i = true;
@@ -283,7 +283,7 @@ namespace LakeSnes
 		}
 		// not stopped or waiting, execute a opcode or go to interrupt
 		if(intWanted) {
-			cpu_read((k << 16) | pc);
+			cpu_read(MakeAddr24(k,pc));
 			cpu_doInterrupt();
 		} else {
 			uint8_t opcode = cpu_readOpcode();
@@ -297,11 +297,6 @@ namespace LakeSnes
 
 	void Cpu::cpu_setIrq(bool state) {
 		irqWanted = state;
-	}
-
-	uint8_t Cpu::cpu_read(uint32_t adr) {
-		intDelay = false;
-		return config.snes->snes_cpuRead(adr);
 	}
 
 	uint8_t Cpu::cpu_read(Addr24 addr)
@@ -413,7 +408,7 @@ namespace LakeSnes
 		sp++;
 		uint8_t rv = (uint8_t)cpu_access_new<1,MemOp::Read>(config.snes,MakeAddr24(0,sp));
 		if(e) sp = (sp & 0xff) | 0x100;
-		return cpu_read(sp);
+		return rv;
 	}
 
 	void Cpu::cpu_pushByte(uint8_t value) {
@@ -545,7 +540,7 @@ namespace LakeSnes
 		uint8_t adr = cpu_readOpcode();
 		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
 		uint16_t pointer = (uint16_t)cpu_access_new<2,MemOp::Read>(config.snes,MakeAddr24(0,dp + adr));
-		auto bank = cpu_read((dp + adr + 2) & 0xffff);
+		auto bank = cpu_read(MakeAddr24(0,dp + adr + 2));
 		return MakeAddr24(bank, pointer);
 	}
 
@@ -553,7 +548,7 @@ namespace LakeSnes
 		uint8_t adr = cpu_readOpcode();
 		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
 		uint16_t pointer = (uint16_t)cpu_access_new<2,MemOp::Read>(config.snes,MakeAddr24(0,dp + adr));
-		auto bank = cpu_read((dp + adr + 2) & 0xffff);
+		auto bank = cpu_read(MakeAddr24(0,dp + adr + 2));
 		return MakeAddr24(bank, pointer + y);
 	}
 
@@ -2285,7 +2280,7 @@ namespace LakeSnes
 				uint16_t adr = cpu_readOpcodeWord(false);
 				pc = cpu_readWord(MakeAddr24(0,adr),false);
 				cpu_checkInt();
-				k = cpu_read((adr + 2) & 0xffff);
+				k = cpu_read(MakeAddr24(0, adr + 2));
 				break;
 			}
 			case 0xdd: { // cmp abx(r)
