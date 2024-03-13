@@ -94,13 +94,13 @@ namespace LakeSnes
 
 	uint8_t Cart::cart_read(uint8_t bank, uint16_t adr) {
 		switch(config.type) {
-			case 0: return config.snes->openBus;
+			case 0: return config.snes->OpenBusRef();
 			case 1: return cart_readLorom(bank, adr);
 			case 2: return cart_readHirom(bank, adr);
 			case 3: return cart_readExHirom(bank, adr);
 			case 4: return cart_readCX4(bank, adr);
 		}
-		return config.snes->openBus;
+		return config.snes->OpenBusRef();
 	}
 
 	void Cart::cart_write(uint8_t bank, uint16_t adr, uint8_t val) {
@@ -140,7 +140,7 @@ namespace LakeSnes
 			if(a&0x8000)
 				return config.rom[(((b&0x7F) << 15) | (a & 0x7fff)) & (config.romSize - 1)];
 			else
-				return config.snes->openBus;
+				return addr.openBus();
 		}
 		else
 		{
@@ -149,7 +149,7 @@ namespace LakeSnes
 			if((b&0x70)==0x70)
 				return ram[(((b) << 15) | a) & (config.ramSize - 1)];
 			else
-				return config.snes->openBus;
+				return addr.openBus();
 		}
 	}
 
@@ -163,7 +163,7 @@ namespace LakeSnes
 			// adr 8000-ffff in all banks or all addresses in banks 40-7f and c0-ff
 			return config.rom[((bank << 15) | (adr & 0x7fff)) & (config.romSize - 1)];
 		}
-		return config.snes->openBus;
+		return config.snes->OpenBusRef();
 	}
 
 	void Cart::cart_writeLorom(uint8_t bank, uint16_t adr, uint8_t val) {
@@ -189,7 +189,7 @@ namespace LakeSnes
 			// adr 8000-ffff in all banks or all addresses in banks 40-7f and c0-ff
 			return config.rom[((bank << 15) | (adr & 0x7fff)) & (config.romSize - 1)];
 		}
-		return config.snes->openBus;
+		return config.snes->OpenBusRef();
 	}
 
 	void Cart::cart_writeCX4(uint8_t bank, uint16_t adr, uint8_t val) {
@@ -215,7 +215,7 @@ namespace LakeSnes
 			// adr 8000-ffff in all banks or all addresses in banks 40-7f and c0-ff
 			return config.rom[(((bank & 0x3f) << 16) | adr) & (config.romSize - 1)];
 		}
-		return config.snes->openBus;
+		return config.snes->OpenBusRef();
 	}
 
 	uint8_t Cart::cart_readExHirom(uint8_t bank, uint16_t adr) {
@@ -229,7 +229,7 @@ namespace LakeSnes
 			// adr 8000-ffff in all banks or all addresses in banks 40-7f and c0-ff
 			return config.rom[(((bank & 0x3f) << 16) | (secondHalf ? 0x400000 : 0) | adr) & (config.romSize - 1)];
 		}
-		return config.snes->openBus;
+		return config.snes->OpenBusRef();
 	}
 
 	void Cart::cart_writeHirom(uint8_t bank, uint16_t adr, uint8_t val) {

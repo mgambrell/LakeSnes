@@ -771,7 +771,7 @@ namespace LakeSnes
 				if(config.snes->ppuLatch) {
 					ppu_latchHV();
 				}
-				return config.snes->openBus;
+				return config.snes->OpenBusRef();
 			}
 			case 0x38: {
 				uint8_t ret = 0;
@@ -867,7 +867,7 @@ namespace LakeSnes
 				return val;
 			}
 			default: {
-				return config.snes->openBus;
+				return config.snes->OpenBusRef();
 			}
 		}
 	}

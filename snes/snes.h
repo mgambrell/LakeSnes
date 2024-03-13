@@ -52,6 +52,11 @@ namespace LakeSnes
 		int snes_saveState(uint8_t* data);
 		bool snes_loadState(uint8_t* data, int size);
 
+		uint8_t& OpenBusRef()
+		{
+			return mycpu._currAddr24._openBus;
+		}
+
 	private:
 		void snes_runCycle();
 		void snes_catchupApu();
@@ -59,23 +64,12 @@ namespace LakeSnes
 		uint8_t snes_readReg(uint16_t adr);
 		void snes_writeReg(uint16_t adr, uint8_t val);
 
-	private:
-		int snes_getAccessTime(uint32_t adr);
-		void build_accesstime(bool init);
-		void free_accesstime();
-
 	public:
+
+		//Components 
 		Cpu mycpu;
-		Apu myapu;
-		Ppu myppu;
 		Dma mydma;
-		Cart mycart;
-		bool palTiming;
-		// input
-		std::array<Input,2> myinput;
-		// ram
-		uint8_t ram[0x20000];
-		uint32_t ramAdr;
+
 		// frame timing
 		uint16_t hPos;
 		uint16_t vPos;
@@ -104,10 +98,22 @@ namespace LakeSnes
 		uint16_t multiplyResult;
 		uint16_t divideA;
 		uint16_t divideResult;
-		// misc
-		bool fastMem;
-		uint8_t openBus;
 
+		//B BUS RELATED STUFF
+		uint32_t ramAdr;
+
+		// ram goes after all the sundry stuff so the sundry can stay together
+		uint8_t ram[0x20000];
+
+		//TODO: mmore organizing
+		Apu myapu;
+		Cart mycart;
+		bool palTiming;
+		// input
+		std::array<Input,2> myinput;
+
+		//ppu at end for now because it's a large mess
+		Ppu myppu;
 	};
 
 }

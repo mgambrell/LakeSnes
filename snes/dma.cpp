@@ -125,7 +125,7 @@ namespace LakeSnes
 				return channel[c].unusedByte;
 			}
 			default: {
-				return snes->openBus;
+				return snes->OpenBusRef();
 			}
 		}
 	}
@@ -347,10 +347,10 @@ namespace LakeSnes
 			aAdr == 0x420b || aAdr == 0x420c || (aAdr >= 0x4300 && aAdr < 0x4380) || (aAdr >= 0x2100 && aAdr < 0x2200)
 		));
 		if(fromB) {
-			uint8_t val = validB ? snes->snes_readBBus(bAdr) : snes->openBus;
+			uint8_t val = validB ? snes->snes_readBBus(bAdr) : snes->OpenBusRef();
 			if(validA) snes->mycpu.dma_write(aBank, aAdr, val);
 		} else {
-			uint8_t val = validA ? snes->mycpu.dma_read(aBank, aAdr) : snes->openBus;
+			uint8_t val = validA ? snes->mycpu.dma_read(aBank, aAdr) : snes->OpenBusRef();
 			if(validB) snes->snes_writeBBus(bAdr, val);
 		}
 	}

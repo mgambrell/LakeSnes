@@ -114,7 +114,7 @@ namespace
 		{
 			if(a & 0x800000)
 			{
-				cpu_access_new_run_cyles_before<OP>(snes, snes->fastMem ? 6 : 8);
+				cpu_access_new_run_cyles_before<OP>(snes, addr.FastCycles());
 				goto CASE_CARTSPECIAL_RIGHTHALF;
 			}
 			else
@@ -133,7 +133,7 @@ namespace
 			{
 				if(a & 0x800000)
 				{
-					cpu_access_new_run_cyles_before<OP>(snes, snes->fastMem ? 6 : 8);
+					cpu_access_new_run_cyles_before<OP>(snes, addr.FastCycles());
 					goto CASE_CARTSPECIAL_RIGHTHALF;
 				}
 				else

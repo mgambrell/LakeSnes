@@ -97,6 +97,18 @@ namespace LakeSnes
 		struct {
 			Snes* snes;
 		} config;
+
+		//This is kept ready so that it's always easy to make
+		Addr24 _currAddr24;
+
+		inline Addr24 MakeAddr24(uint8_t bank, uint16_t addr)
+		{
+			Addr24 rv = _currAddr24;
+			rv._bank = bank;
+			rv._addr = addr;
+			return rv;
+		}
+
 		// registers
 		uint16_t a;
 		uint16_t x;

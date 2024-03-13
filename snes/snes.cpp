@@ -69,17 +69,15 @@ namespace LakeSnes
 		multiplyResult = 0xfe01;
 		divideA = 0xffff;
 		divideResult = 0x101;
-		fastMem = false;
-		openBus = 0;
 		nextHoriEvent = 16;
 	}
 
 	void Snes::snes_handleState(StateHandler* sh) {
 		sh_handleBools(sh,
 			&palTiming, &hIrqEnabled, &vIrqEnabled, &nmiEnabled, &inNmi, &irqCondition,
-			&inIrq, &inVblank, &autoJoyRead, &ppuLatch, &fastMem, NULL
+			&inIrq, &inVblank, &autoJoyRead, &ppuLatch, NULL
 		);
-		sh_handleBytes(sh, &multiplyA, &openBus, NULL);
+		sh_handleBytes(sh, &multiplyA, NULL);
 		sh_handleWords(sh,
 			&hPos, &vPos, &hTimer, &vTimer,
 			&portAutoRead[0], &portAutoRead[1], &portAutoRead[2], &portAutoRead[3],
@@ -265,7 +263,7 @@ namespace LakeSnes
 			ramAdr &= 0x1ffff;
 			return ret;
 		}
-		return openBus;
+		return OpenBusRef();
 	}
 
 	void Snes::snes_writeBBus(uint8_t adr, uint8_t val) {
@@ -305,19 +303,19 @@ namespace LakeSnes
 				uint8_t val = 0x2; // CPU version (4 bit)
 				val |= inNmi << 7;
 				inNmi = false;
-				return val | (openBus & 0x70);
+				return val | (OpenBusRef() & 0x70);
 			}
 			case 0x4211: {
 				uint8_t val = inIrq << 7;
 				inIrq = false;
 				mycpu.cpu_setIrq(false);
-				return val | (openBus & 0x7f);
+				return val | (OpenBusRef() & 0x7f);
 			}
 			case 0x4212: {
 				uint8_t val = (autoJoyTimer > 0);
 				val |= (hPos < 4 || hPos >= 1096) << 6;
 				val |= inVblank << 7;
-				return val | (openBus & 0x3e);
+				return val | (OpenBusRef() & 0x3e);
 			}
 			case 0x4213: {
 				return ppuLatch << 7; // IO-port
@@ -347,7 +345,7 @@ namespace LakeSnes
 				return portAutoRead[(adr - 0x4219) / 2] >> 8;
 			}
 			default: {
-				return openBus;
+				return OpenBusRef();
 			}
 		}
 	}
@@ -430,9 +428,7 @@ namespace LakeSnes
 				break;
 			}
 			case 0x420d: {
-				if (fastMem != (val & 0x1)) {
-				}
-				fastMem = val & 0x1;
+				mycpu._currAddr24.SetFastMemory(!!(val & 0x1));
 				break;
 			}
 			default: {
@@ -446,10 +442,10 @@ namespace LakeSnes
 			return snes_readBBus(adr & 0xff); // B-bus
 		}
 		if(adr == 0x4016) {
-			return myinput[0].input_read() | (openBus & 0xfc);
+			return myinput[0].input_read() | (OpenBusRef() & 0xfc);
 		}
 		if(adr == 0x4017) {
-			return myinput[1].input_read() | (openBus & 0xe0) | 0x1c;
+			return myinput[1].input_read() | (OpenBusRef() & 0xe0) | 0x1c;
 		}
 		if(adr >= 0x4200 && adr < 0x4220) {
 			return snes_readReg(adr); // internal registers
