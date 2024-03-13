@@ -49,7 +49,30 @@ namespace LakeSnes
 		uint8_t ppu_read(uint8_t adr);
 		void ppu_write(uint8_t adr, uint8_t val);
 		void ppu_latchHV();
-		void ppu_putPixels(uint8_t* pixels);
+
+		//You can use this to convert emit a friendlier-format 512x480x4BPP buffer.
+		//You won't have to worry about resolutions and interlacing.
+		//(Note that interlacing is already applied by this method in a weave manner)
+		void ppu_putPixels(uint8_t* outPixels);
+
+		struct FramebufferInfo
+		{
+			//The pixel data. You configured this yourself, but it's just here for convenience.
+			uint8_t* Pixels;
+
+			//If "overscan" was enabled for the frame (239 lines instead of 224)
+			bool FrameOverscan;
+
+			//If "interlaced" is enabled for the frame
+			bool FrameInterlaced;
+
+			//in case of "FrameInterlaced", indicates whether the current frame is odd or even.
+			bool EvenFrame;
+		};
+
+		//After a frame is run, the buffer you provided to Snes::Init() will contain the pixel data
+		//This method gets information about that framebuffer, so you can display it correctly.
+		void GetFramebufferInfo(Ppu::FramebufferInfo* info);
 
 	private:
 		void ppu_handlePixel(int x, int y);
@@ -66,6 +89,7 @@ namespace LakeSnes
 		public:
 			struct {
 				Snes* snes;
+				uint8_t* pixelBuffer;
 			} config;
 
 		// vram access
@@ -75,12 +99,10 @@ namespace LakeSnes
 		uint8_t vramRemapMode;
 		uint16_t vramReadBuffer;
 		// cgram access
-		uint16_t cgram[0x100];
 		uint8_t cgramPointer;
 		bool cgramSecondWrite;
 		uint8_t cgramBuffer;
 		// oam access
-		uint16_t oam[0x100];
 		uint8_t highOam[0x20];
 		uint8_t oamAdr;
 		uint8_t oamAdrWritten;
@@ -93,8 +115,6 @@ namespace LakeSnes
 		uint16_t objTileAdr1;
 		uint16_t objTileAdr2;
 		uint8_t objSize;
-		uint8_t objPixelBuffer[256]; // line buffers
-		uint8_t objPriorityBuffer[256];
 		bool timeOver;
 		bool rangeOver;
 		bool objInterlace;
@@ -154,12 +174,14 @@ namespace LakeSnes
 		uint8_t ppu1openBus;
 		uint8_t ppu2openBus;
 
+		//larger buffers
+		uint16_t cgram[0x100];
+		uint16_t oam[0x100];
+		uint8_t objPixelBuffer[256]; // line buffers
+		uint8_t objPriorityBuffer[256];
+
 		//vram
 		uint16_t vram[0x8000];
-
-		// pixel buffer (xbgr)
-		// times 2 for even and odd frame
-		uint8_t pixelBuffer[512 * 4 * 239 * 2];
 	};
 
 

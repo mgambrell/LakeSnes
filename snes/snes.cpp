@@ -18,7 +18,9 @@
 
 namespace LakeSnes
 {
-	Snes* Snes::snes_init() {
+	Snes* Snes::snes_init(const SnesConfig* snesConfig)
+	{
+		this->snesConfig = *snesConfig;
 		mycpu.cpu_init(this);
 		mydma.dma_init(this);
 		myapu.apu_init(this);

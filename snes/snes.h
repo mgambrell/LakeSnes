@@ -15,10 +15,16 @@ namespace LakeSnes
 {
 	struct StateHandler;
 
+	struct SnesConfig
+	{
+		//Donate this memory to the PPU so it can draw the framebuffer in there
+		uint8_t *pixelBufferRGBX8888_512x239x2;
+	};
+
 	class Snes
 	{
 	public:
-		Snes* snes_init();
+		Snes* snes_init(const SnesConfig *config);
 		void snes_free();
 		void snes_reset(bool hard);
 		void snes_handleState(StateHandler* sh);
@@ -115,6 +121,8 @@ namespace LakeSnes
 
 		//ppu at end for now because it's a large mess
 		Ppu myppu;
+
+		SnesConfig snesConfig;
 	};
 
 }
