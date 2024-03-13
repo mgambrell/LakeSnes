@@ -432,13 +432,17 @@ namespace LakeSnes
 		if(e) sp = (sp & 0xff) | 0x100;
 	}
 
-	uint16_t Cpu::cpu_pullWord(bool intCheck) {
+	uint16_t Cpu::cpu_pullWord(bool intCheck)
+	{
+		//this can't be done internally with word-sized ops because of the special SP wrap-around incrementing behaviour
 		uint8_t value = cpu_pullByte();
 		if(intCheck) cpu_checkInt();
 		return value | (cpu_pullByte() << 8);
 	}
 
-	void Cpu::cpu_pushWord(uint16_t value, bool intCheck) {
+	void Cpu::cpu_pushWord(uint16_t value, bool intCheck)
+	{
+		//this can't be done internally with word-sized ops because of the special SP wrap-around incrementing behaviour
 		cpu_pushByte(value >> 8);
 		if(intCheck) cpu_checkInt();
 		cpu_pushByte(value & 0xff);
@@ -473,9 +477,9 @@ namespace LakeSnes
 		intWanted = false;
 		if(nmiWanted) {
 			nmiWanted = false;
-			pc = cpu_readWord(0xffea, 0xffeb, false);
+			pc = (uint16_t)cpu_access_new<2,MemOp::Read>(config.snes,MakeAddr24(0,0xFFEA));
 		} else { // irq
-			pc = cpu_readWord(0xffee, 0xffef, false);
+			pc = (uint16_t)cpu_access_new<2,MemOp::Read>(config.snes,MakeAddr24(0,0xFFEE));
 		}
 	}
 
