@@ -87,6 +87,7 @@ namespace LakeSnes
 
 	void Ppu::ppu_init(Snes* snes) {
 		config.snes = snes;
+		config.pixelBuffer =  snes->snesConfig.pixelBufferRGBX8888_512x239x2;
 	}
 
 	void Ppu::ppu_free() {
@@ -375,7 +376,7 @@ namespace LakeSnes
 				r2 = r; g2 = g; b2 = b;
 			}
 		}
-		uint32_t *dest = (uint32_t*)&pixelBuffer[((y - 1) + (evenFrame ? 0 : 239)) * 2048 + x * 8];
+		uint32_t *dest = (uint32_t*)&config.pixelBuffer[((y - 1) + (evenFrame ? 0 : 239)) * 2048 + x * 8];
 
 		dest[0] = ((((b2 << 3) | (b2 >> 2)) * bright_now) >> 16) << 0 |
 							((((g2 << 3) | (g2 >> 2)) * bright_now) >> 16) << 8 |
@@ -1161,7 +1162,15 @@ namespace LakeSnes
 		}
 	}
 
-	void Ppu::ppu_putPixels(uint8_t* pixels) {
+	void Ppu::GetFramebufferInfo(Ppu::FramebufferInfo* info)
+	{
+		info->Pixels = config.pixelBuffer;
+		info->FrameOverscan = frameOverscan;
+		info->FrameInterlaced = frameInterlace;
+		info->EvenFrame = evenFrame;
+	}
+
+	void Ppu::ppu_putPixels(uint8_t* outPixels) {
 		for(int y = 0; y < (frameOverscan ? 239 : 224); y++) {
 			int dest = y * 2 + (frameOverscan ? 2 : 16);
 			int y1 = y, y2 = y + 239;
@@ -1169,14 +1178,14 @@ namespace LakeSnes
 				y1 = y + (evenFrame ? 0 : 239);
 				y2 = y1;
 			}
-			memcpy(pixels + (dest * 2048), &pixelBuffer[y1 * 2048], 2048);
-			memcpy(pixels + ((dest + 1) * 2048), &pixelBuffer[y2 * 2048], 2048);
+			memcpy(outPixels + (dest * 2048), &config.pixelBuffer[y1 * 2048], 2048);
+			memcpy(outPixels + ((dest + 1) * 2048), &config.pixelBuffer[y2 * 2048], 2048);
 		}
 		// clear top 2 lines, and following 14 and last 16 lines if not overscanning
-		memset(pixels, 0, 2048 * 2);
+		memset(outPixels, 0, 2048 * 2);
 		if(!frameOverscan) {
-			memset(pixels + (2 * 2048), 0, 2048 * 14);
-			memset(pixels + (464 * 2048), 0, 2048 * 16);
+			memset(outPixels + (2 * 2048), 0, 2048 * 14);
+			memset(outPixels + (464 * 2048), 0, 2048 * 16);
 		}
 	}
 
