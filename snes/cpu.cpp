@@ -421,12 +421,13 @@ namespace LakeSnes
 
 	uint8_t Cpu::cpu_pullByte() {
 		sp++;
+		uint8_t rv = (uint8_t)cpu_access_new<1,MemOp::Read>(config.snes,MakeAddr24(0,sp));
 		if(e) sp = (sp & 0xff) | 0x100;
 		return cpu_read(sp);
 	}
 
 	void Cpu::cpu_pushByte(uint8_t value) {
-		cpu_write(sp, value);
+		cpu_access_new<1,MemOp::Write>(config.snes,MakeAddr24(0,sp),value,false,false);
 		sp--;
 		if(e) sp = (sp & 0xff) | 0x100;
 	}
