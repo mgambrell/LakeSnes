@@ -411,7 +411,7 @@ namespace LakeSnes
 		val |= d << 3;
 		val |= i << 2;
 		val |= z << 1;
-		val |= c;
+		val |= c << 0;
 		return val;
 	}
 
@@ -866,7 +866,7 @@ namespace LakeSnes
 		void cpu_sta(Addr24 addr) {
 			if(MF) {
 				cpu_checkInt();
-				cpu_write(addr, a);
+				cpu_write(addr, (uint8_t)a);
 			} else {
 				cpu_writeWord(addr, a, false, true);
 			}
@@ -875,7 +875,7 @@ namespace LakeSnes
 		void cpu_stx(Addr24 addr) {
 			if(XF) {
 				cpu_checkInt();
-				cpu_write(addr, x);
+				cpu_write(addr, (uint8_t)x);
 			} else {
 				cpu_writeWord(addr, x, false, true);
 			}
@@ -884,7 +884,7 @@ namespace LakeSnes
 		void cpu_sty(Addr24 addr) {
 			if(XF) {
 				cpu_checkInt();
-				cpu_write(addr, y);
+				cpu_write(addr, (uint8_t)y);
 			} else {
 				cpu_writeWord(addr, y, false, true);
 			}
@@ -923,13 +923,13 @@ namespace LakeSnes
 		void cpu_rol(Addr24 addr) {
 			int result = 0;
 			if(MF) {
-				result = (cpu_read(addr) << 1) | c;
+				result = (cpu_read(addr) << 1) | (c?1:0);
 				cpu_idle();
 				c = result & 0x100;
 				cpu_checkInt();
 				cpu_write(addr, result);
 			} else {
-				result = (cpu_readWord(addr, false) << 1) | c;
+				result = (cpu_readWord(addr, false) << 1) | (c?1:0);
 				cpu_idle();
 				c = result & 0x10000;
 				cpu_writeWord(addr, result, true, true);
@@ -1283,7 +1283,7 @@ namespace LakeSnes
 				}
 				case 0x2a: { // rola imp
 					cpu_adrImp();
-					int result = (a << 1) | c;
+					int result = (a << 1) | (c?1:0);
 					if(MF) {
 						c = result & 0x100;
 						a = (a & 0xff00) | (result & 0xff);
@@ -1469,7 +1469,7 @@ namespace LakeSnes
 					cpu_idle();
 					if(MF) {
 						cpu_checkInt();
-						cpu_pushByte(a);
+						cpu_pushByte((uint8_t)a);
 					} else {
 						cpu_pushWord(a, true);
 					}
@@ -1584,7 +1584,7 @@ namespace LakeSnes
 					cpu_idle();
 					if(XF) {
 						cpu_checkInt();
-						cpu_pushByte(y);
+						cpu_pushByte((uint8_t)y);
 					} else {
 						cpu_pushWord(y, true);
 					}
@@ -2324,7 +2324,7 @@ namespace LakeSnes
 					cpu_idle();
 					if(XF) {
 						cpu_checkInt();
-						cpu_pushByte(x);
+						cpu_pushByte((uint8_t)x);
 					} else {
 						cpu_pushWord(x, true);
 					}
