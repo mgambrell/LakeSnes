@@ -28,18 +28,15 @@ namespace LakeSnes
 		void snes_syncCycles(bool start, int syncCycles);
 		uint8_t snes_readBBus(uint8_t adr);
 		void snes_writeBBus(uint8_t adr, uint8_t val);
-		uint8_t snes_read(uint32_t adr);
-		void snes_write(uint32_t adr, uint8_t val);
 		void snes_cpuIdle(bool waiting);
-		//void snes_cpuWrite(uint32_t adr, uint8_t val);
-
-		uint8_t snes_cpuRead(Addr24 addr);
+		void snes_writeIO(uint16_t adr, uint8_t val);
+		uint8_t snes_readIO(uint16_t adr);
 
 		// debugging
 		void snes_runCpuCycle();
 		void snes_runSpcCycle();
 
-		uint8_t snes_cpuReadWith(uint32_t adr);
+		
 
 		// snes_other.c functions:
 
@@ -54,8 +51,6 @@ namespace LakeSnes
 		bool snes_loadBattery(uint8_t* data, int size);
 		int snes_saveState(uint8_t* data);
 		bool snes_loadState(uint8_t* data, int size);
-
-		uint8_t snes_rread(uint32_t adr);
 
 	private:
 		void snes_runCycle();

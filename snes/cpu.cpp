@@ -196,9 +196,9 @@ namespace
 
 	CASE_IOBLOCK:
 		if(READTYPE)
-			rv = snes->snes_rread(addr.addr());
+			rv = snes->snes_readIO(addr.addr());
 		else
-			snes->snes_write(addr.addr(),(uint8_t)value);
+			snes->snes_writeIO(addr.addr(),(uint8_t)value);
 		goto CASE_END;
 
 	CASE_END:

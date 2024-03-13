@@ -1,3 +1,4 @@
+#include "conf.h"
 #include "snes.h"
 #include "cpu.h"
 #include "apu.h"
@@ -440,69 +441,43 @@ namespace LakeSnes
 		}
 	}
 
-	uint8_t Snes::snes_rread(uint32_t adr) {
-		uint8_t bank = adr >> 16;
-		adr &= 0xffff;
-		if(bank == 0x7e || bank == 0x7f) {
-			return ram[((bank & 1) << 16) | adr]; // ram
+	uint8_t Snes::snes_readIO(uint16_t adr) {
+		if(adr >= 0x2100 && adr < 0x2200) {
+			return snes_readBBus(adr & 0xff); // B-bus
 		}
-		if(bank < 0x40 || (bank >= 0x80 && bank < 0xc0)) {
-			if(adr < 0x2000) {
-				return ram[adr]; // ram mirror
-			}
-			if(adr >= 0x2100 && adr < 0x2200) {
-				return snes_readBBus(adr & 0xff); // B-bus
-			}
-			if(adr == 0x4016) {
-				return myinput[0].input_read() | (openBus & 0xfc);
-			}
-			if(adr == 0x4017) {
-				return myinput[1].input_read() | (openBus & 0xe0) | 0x1c;
-			}
-			if(adr >= 0x4200 && adr < 0x4220) {
-				return snes_readReg(adr); // internal registers
-			}
-			if(adr >= 0x4300 && adr < 0x4380) {
-				return mydma.dma_read(adr); // dma registers
-			}
+		if(adr == 0x4016) {
+			return myinput[0].input_read() | (openBus & 0xfc);
 		}
-		// read from cart
-		return mycart.cart_read(bank, adr);
+		if(adr == 0x4017) {
+			return myinput[1].input_read() | (openBus & 0xe0) | 0x1c;
+		}
+		if(adr >= 0x4200 && adr < 0x4220) {
+			return snes_readReg(adr); // internal registers
+		}
+		if(adr >= 0x4300 && adr < 0x4380) {
+			return mydma.dma_read(adr); // dma registers
+		}
+		LAKESNES_UNREACHABLE;
+		return 0;
 	}
 
-	void Snes::snes_write(uint32_t adr, uint8_t val) {
-		openBus = val;
-		uint8_t bank = adr >> 16;
-		adr &= 0xffff;
-		if(bank == 0x7e || bank == 0x7f) {
-			ram[((bank & 1) << 16) | adr] = val; // ram
+	void Snes::snes_writeIO(uint16_t adr, uint8_t val)
+	{
+		//matt's reminder to deal with open bus
+		//openBus = val;
+		if(adr >= 0x2100 && adr < 0x2200) {
+			snes_writeBBus(adr & 0xff, val); // B-bus
 		}
-		if(bank < 0x40 || (bank >= 0x80 && bank < 0xc0)) {
-			if(adr < 0x2000) {
-				ram[adr] = val; // ram mirror
-			}
-			if(adr >= 0x2100 && adr < 0x2200) {
-				snes_writeBBus(adr & 0xff, val); // B-bus
-			}
-			if(adr == 0x4016) {
-				myinput[0].input_latch(val & 1); // input latch
-				myinput[1].input_latch(val & 1);
-			}
-			if(adr >= 0x4200 && adr < 0x4220) {
-				snes_writeReg(adr, val); // internal registers
-			}
-			if(adr >= 0x4300 && adr < 0x4380) {
-				mydma.dma_write(adr, val); // dma registers
-			}
+		if(adr == 0x4016) {
+			myinput[0].input_latch(val & 1); // input latch
+			myinput[1].input_latch(val & 1);
 		}
-		// write to cart
-		mycart.cart_write(bank, adr, val);
-	}
-
-	uint8_t Snes::snes_read(uint32_t adr) {
-		uint8_t val = snes_rread(adr);
-		openBus = val;
-		return val;
+		if(adr >= 0x4200 && adr < 0x4220) {
+			snes_writeReg(adr, val); // internal registers
+		}
+		if(adr >= 0x4300 && adr < 0x4380) {
+			mydma.dma_write(adr, val); // dma registers
+		}
 	}
 
 	void Snes::snes_cpuIdle(bool waiting) {
