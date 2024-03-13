@@ -270,7 +270,7 @@ namespace LakeSnes
 			d = false;
 			cpu_setFlags(cpu_getFlags()); // updates x and m flags, clears upper half of x and y if needed
 			k = 0;
-			pc = cpu_readWord(0xfffc, 0xfffd, false);
+			pc = cpu_readWord(MakeAddr24(0,0xfffc),false);
 			return;
 		}
 		if(stopped) {
@@ -319,9 +319,7 @@ namespace LakeSnes
 
 	uint16_t Cpu::cpu_readWord(Addr24 addr, bool intCheck)
 	{
-		auto addrl = (addr.bank()<<16)+addr.addr();
-		auto addrh = ((addr.bank()<<16)+addr.addr()+1)&0xFFFFFF;
-		return cpu_readWord(addrl,addrh,intCheck);
+		return cpu_access_new<2,MemOp::Read>(config.snes,addr,0,false,intCheck);
 	}
 
 	void Cpu::cpu_write(Addr24 addr, uint8_t val)
@@ -448,23 +446,23 @@ namespace LakeSnes
 		cpu_pushByte(value & 0xff);
 	}
 
-	uint16_t Cpu::cpu_readWord(uint32_t adrl, uint32_t adrh, bool intCheck) {
-		uint8_t value = cpu_read(adrl);
-		if(intCheck) cpu_checkInt();
-		return value | (cpu_read(adrh) << 8);
-	}
+	//uint16_t Cpu::cpu_readWord(uint32_t adrl, uint32_t adrh, bool intCheck) {
+	//	uint8_t value = cpu_read(adrl);
+	//	if(intCheck) cpu_checkInt();
+	//	return value | (cpu_read(adrh) << 8);
+	//}
 
-	void Cpu::cpu_writeWord(uint32_t adrl, uint32_t adrh, uint16_t value, bool reversed, bool intCheck) {
-		if(reversed) {
-			cpu_write(adrh, value >> 8);
-			if(intCheck) cpu_checkInt();
-			cpu_write(adrl, value & 0xff);
-		} else {
-			cpu_write(adrl, value & 0xff);
-			if(intCheck) cpu_checkInt();
-			cpu_write(adrh, value >> 8);
-		}
-	}
+	//void Cpu::cpu_writeWord(uint32_t adrl, uint32_t adrh, uint16_t value, bool reversed, bool intCheck) {
+	//	if(reversed) {
+	//		cpu_write(adrh, value >> 8);
+	//		if(intCheck) cpu_checkInt();
+	//		cpu_write(adrl, value & 0xff);
+	//	} else {
+	//		cpu_write(adrl, value & 0xff);
+	//		if(intCheck) cpu_checkInt();
+	//		cpu_write(adrh, value >> 8);
+	//	}
+	//}
 
 	void Cpu::cpu_doInterrupt() {
 		cpu_idle();
@@ -1003,7 +1001,7 @@ namespace LakeSnes
 				i = true;
 				d = false;
 				k = 0;
-				pc = cpu_readWord(vector, vector + 1, true);
+				pc = cpu_readWord(MakeAddr24(0,vector),true);
 				break;
 			}
 			case 0x01: { // ora idx
@@ -1020,7 +1018,7 @@ namespace LakeSnes
 				i = true;
 				d = false;
 				k = 0;
-				pc = cpu_readWord(vector, vector + 1, true);
+				pc = cpu_readWord(MakeAddr24(0,vector),true);
 				break;
 			}
 			case 0x03: { // ora sr
@@ -1659,7 +1657,7 @@ namespace LakeSnes
 			}
 			case 0x6c: { // jmp ind
 				uint16_t adr = cpu_readOpcodeWord(false);
-				pc = cpu_readWord(adr, (adr + 1) & 0xffff, true);
+				pc = cpu_readWord(MakeAddr24(0,adr),true);
 				break;
 			}
 			case 0x6d: { // adc abs
@@ -1747,7 +1745,7 @@ namespace LakeSnes
 			case 0x7c: { // jmp iax
 				uint16_t adr = cpu_readOpcodeWord(false);
 				cpu_idle();
-				pc = cpu_readWord((k << 16) | ((adr + x) & 0xffff), (k << 16) | ((adr + x + 1) & 0xffff), true);
+				pc = cpu_readWord(MakeAddr24(k,adr + x),true);
 				break;
 			}
 			case 0x7d: { // adc abx(r)
@@ -2293,7 +2291,7 @@ namespace LakeSnes
 			}
 			case 0xdc: { // jml ial
 				uint16_t adr = cpu_readOpcodeWord(false);
-				pc = cpu_readWord(adr, (adr + 1) & 0xffff, false);
+				pc = cpu_readWord(MakeAddr24(0,adr),false);
 				cpu_checkInt();
 				k = cpu_read((adr + 2) & 0xffff);
 				break;
@@ -2478,8 +2476,7 @@ namespace LakeSnes
 				cpu_pushWord(pc, false);
 				uint16_t adr = adrl | (cpu_readOpcode() << 8);
 				cpu_idle();
-				uint16_t value = cpu_readWord((k << 16) | ((adr + x) & 0xffff), (k << 16) | ((adr + x + 1) & 0xffff), true);
-				pc = value;
+				pc = cpu_readWord(MakeAddr24(k,adr + x),true);
 				break;
 			}
 			case 0xfd: { // sbc abx(r)

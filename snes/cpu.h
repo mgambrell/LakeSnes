@@ -38,7 +38,7 @@ namespace LakeSnes
 		void cpu_pushByte(uint8_t value);
 		uint16_t cpu_pullWord(bool intCheck);
 		void cpu_pushWord(uint16_t value, bool intCheck);
-		uint16_t cpu_readWord(uint32_t adrl, uint32_t adrh, bool intCheck);
+		//uint16_t cpu_readWord(uint32_t adrl, uint32_t adrh, bool intCheck);
 		void cpu_writeWord(uint32_t adrl, uint32_t adrh, uint16_t value, bool reversed, bool intCheck);
 		void cpu_doInterrupt();
 		void cpu_doOpcode(uint8_t opcode);
