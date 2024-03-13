@@ -569,21 +569,21 @@ namespace LakeSnes
 		Addr24 cpu_adrDp() {
 			uint8_t adr = cpu_readOpcode();
 			if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
-			return MakeAddr24(dp,adr);
+			return MakeAddr24(0,dp+adr);
 		}
 
 		Addr24 cpu_adrDpx() {
 			uint8_t adr = cpu_readOpcode();
 			if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
 			cpu_idle();
-			return MakeAddr24(dp,adr+x);
+			return MakeAddr24(0,dp+adr+x);
 		}
 
 		Addr24 cpu_adrDpy() {
 			uint8_t adr = cpu_readOpcode();
 			if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
 			cpu_idle();
-			return MakeAddr24(dp,adr+y);
+			return MakeAddr24(0,dp+adr+y);
 		}
 
 		Addr24 cpu_adrIdp() {
@@ -2564,6 +2564,7 @@ namespace LakeSnes
 
 	void Cpu::cpu_doOpcode(uint8_t opcode)
 	{
+		//looks awkward but runs okay on arm, just a couple of 'cbz' instructions
 		if(_xf)
 			if(_mf)
 				((TCpu<true,true>*)this)->_cpu_doOpcode(opcode);
