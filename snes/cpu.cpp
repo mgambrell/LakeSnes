@@ -1,3 +1,6 @@
+//what the heck? this slows things down.
+//#define LAKESNES_CONFIG_CPU_ONE_SYNC_PER_BUS_ACCESSES 1
+
 #include "conf.h"
 
 #include "cpu.h"
@@ -33,10 +36,20 @@ namespace
 	template<MemOp OP> void cpu_access_new_run_cyles_before(LakeSnes::Snes* snes, int CYC)
 	{
 		if(MemOp_IsDmaType(OP)) return;
+
+		int defer = 0;
+
+		//only reads defer any cycles for later
 		if(MemOp_IsReadType(OP))
-		{
-			CYC = CYC-4;
-		}
+			defer = 4;
+
+		//Don't defer anything if we want one sync only (it will be fully handled here, then, since none are deferred)
+		#ifdef LAKESNES_CONFIG_CPU_ONE_SYNC_PER_BUS_ACCESSES
+		defer = 0;
+		#endif
+
+		CYC -= defer;
+
 		snes->mydma.dma_handleDma(CYC);
 		snes->snes_runCycles(CYC);
 	}
@@ -44,6 +57,13 @@ namespace
 	template<MemOp OP> void cpu_access_new_run_cyles_after(LakeSnes::Snes* snes)
 	{
 		if(MemOp_IsDmaType(OP)) return;
+
+		//in this case, we took the full charge already
+		#ifdef LAKESNES_CONFIG_CPU_ONE_SYNC_PER_BUS_ACCESSES
+		return;
+		#endif
+
+		//for reads, 4 cycles have been deferred until now.
 		if(MemOp_IsReadType(OP))
 		{
 			snes->mydma.dma_handleDma(4);

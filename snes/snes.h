@@ -65,7 +65,7 @@ namespace LakeSnes
 
 	public:
 
-		//Components 
+		//Components that get accessed in close relationship with the other nearby members
 		Cpu mycpu;
 		Dma mydma;
 
