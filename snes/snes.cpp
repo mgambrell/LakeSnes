@@ -17,8 +17,6 @@
 
 namespace LakeSnes
 {
-	static uint8_t *access_time;
-
 	Snes* Snes::snes_init() {
 		mycpu.cpu_init(this);
 		mydma.dma_init(this);
@@ -28,7 +26,6 @@ namespace LakeSnes
 		myinput[0].input_init(0);
 		myinput[1].input_init(1);
 		palTiming = false;
-		build_accesstime(true);
 		return this;
 	}
 
@@ -37,7 +34,6 @@ namespace LakeSnes
 		mycart.cart_free();
 		myinput[0].input_free();
 		myinput[1].input_free();
-		free_accesstime();
 	}
 
 	void Snes::snes_reset(bool hard) {
@@ -434,7 +430,6 @@ namespace LakeSnes
 			}
 			case 0x420d: {
 				if (fastMem != (val & 0x1)) {
-					build_accesstime(false);
 				}
 				fastMem = val & 0x1;
 				break;
@@ -502,32 +497,6 @@ namespace LakeSnes
 		}
 		// write to cart
 		mycart.cart_write(bank, adr, val);
-	}
-
-	int Snes::snes_getAccessTime(uint32_t adr) {
-		uint8_t bank = adr >> 16;
-		adr &= 0xffff;
-		if((bank < 0x40 || (bank >= 0x80 && bank < 0xc0)) && adr < 0x8000) {
-			// 00-3f,80-bf:0-7fff
-			if(adr < 0x2000 || adr >= 0x6000) return 8; // 0-1fff, 6000-7fff
-			if(adr < 0x4000 || adr >= 0x4200) return 6; // 2000-3fff, 4200-5fff
-			return 12; // 4000-41ff
-		}
-		// 40-7f,co-ff:0000-ffff, 00-3f,80-bf:8000-ffff
-		return (fastMem && bank >= 0x80) ? 6 : 8; // depends on setting in banks 80+
-	}
-
-	void Snes::build_accesstime(bool init) {
-		if (init) {
-			access_time = (uint8_t *)malloc(0x1000000);
-		}
-		for (int i = 0; i < 0x1000000; i++) {
-			access_time[i] = snes_getAccessTime(i);
-		}
-	}
-
-	void Snes::free_accesstime() {
-		free(access_time);
 	}
 
 	uint8_t Snes::snes_read(uint32_t adr) {
