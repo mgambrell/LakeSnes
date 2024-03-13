@@ -137,9 +137,6 @@ namespace LakeSnes
 		bool _xf;
 		bool _mf;
 		bool e;
-		// power state (WAI/STP)
-		bool waiting;
-		bool stopped;
 		// interrupts
 		bool irqWanted;
 		bool nmiWanted;

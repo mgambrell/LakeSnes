@@ -302,8 +302,6 @@ namespace LakeSnes
 			e = false;
 			irqWanted = false;
 		}
-		waiting = false;
-		stopped = false;
 		nmiWanted = false;
 		intWanted = false;
 		intDelay = false;
@@ -312,7 +310,7 @@ namespace LakeSnes
 
 	void Cpu::cpu_handleState(StateHandler* sh) {
 		sh_handleBools(sh,
-			&c, &z, &v, &n, &i, &d, &_xf, &_mf, &e, &waiting, &stopped,
+			&c, &z, &v, &n, &i, &d, &_xf, &_mf, &e,
 			&irqWanted, &nmiWanted, &intWanted, &intDelay, &resetWanted, NULL
 		);
 		sh_handleBytes(sh, &k, &db, NULL);
@@ -336,22 +334,6 @@ namespace LakeSnes
 			k = 0;
 			pc = cpu_readWord(MakeAddr24(0,0xfffc),false);
 			goto END;
-		}
-		if(stopped) {
-			cpu_idleWait();
-			goto END;
-		}
-		if(waiting) {
-			if(irqWanted || nmiWanted) {
-				waiting = false;
-				cpu_idle();
-				cpu_checkInt();
-				cpu_idle();
-				goto END;
-			} else {
-				cpu_idleWait();
-				goto END;
-			}
 		}
 		// not stopped or waiting, execute a opcode or go to interrupt
 		if(intWanted) {
@@ -2261,9 +2243,12 @@ namespace LakeSnes
 					break;
 				}
 				case 0xcb: { // wai imp
-					waiting = true;
+					//run this instruction forever
+					pc--;
 					cpu_idle();
 					cpu_idle();
+					cpu_checkInt(); //wild guess
+					//not tested
 					break;
 				}
 				case 0xcc: { // cpy abs
@@ -2346,7 +2331,8 @@ namespace LakeSnes
 					break;
 				}
 				case 0xdb: { // stp imp
-					stopped = true;
+					//run this instruction forever
+					pc--;
 					cpu_idle();
 					cpu_idle();
 					break;
