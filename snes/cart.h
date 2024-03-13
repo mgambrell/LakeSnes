@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+#include "Add24.h"
+
 namespace LakeSnes
 {
 	class Snes;
@@ -23,6 +25,9 @@ namespace LakeSnes
 		uint8_t cart_read(uint8_t bank, uint16_t adr);
 		void cart_write(uint8_t bank, uint16_t adr, uint8_t val);
 
+		uint8_t cart_readLoromByteNew(bool RIGHT, Addr24 addr);
+		void cart_writeLoromByteNew(bool RIGHT, Addr24 addr, uint8_t value);
+
 	private:
 
 		uint8_t cart_readLorom(uint8_t bank, uint16_t adr);
@@ -32,6 +37,7 @@ namespace LakeSnes
 		void cart_writeHirom(uint8_t bank, uint16_t adr, uint8_t val);
 		uint8_t cart_readCX4(uint8_t bank, uint16_t adr);
 		void cart_writeCX4(uint8_t bank, uint16_t adr, uint8_t val);
+
 
 	public:
 		struct {

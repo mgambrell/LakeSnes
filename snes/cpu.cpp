@@ -1,6 +1,7 @@
 #include "cpu.h"
 #include "statehandler.h"
 #include "snes.h"
+#include "Add24.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -37,12 +38,12 @@ namespace
 
 	enum class RESOURCE
 	{
-		OPENBUS,
-		ROM,
 		WRAM,
-		SRAM,
+		LOWRAM,
 		IOBLOCK,
-		IOBLOCK_SLOWJOYPAD,
+		IOBLOCK_SLOW,
+		CARTSPECIAL_LEFTHALF,
+		CARTSPECIAL_RIGHTHALF
 	};
 
 	struct In {
@@ -54,7 +55,7 @@ namespace
 		RESOURCE res;
 	} out;
 
-
+	#if 0
 	template<int BANK, MemOp OP> int cpu_access_new_work(LakeSnes::Snes* snes, int bank, uint16_t addr, int value)
 	{
 		#define CASE10(X) \
@@ -262,61 +263,178 @@ namespace
 		}
 		
 	}
+	#endif
 
-	template<int BYTES, MemOp OP> int cpu_access_new(LakeSnes::Snes* snes, int bank, uint16_t addr, int value, bool reversed, bool intCheck)
+	void cpu_access_new_run_cyles(LakeSnes::Snes* snes, int CYC)
 	{
-		//TODO: actually handle 2 byte accesses directly in one go
-		//(intCheck won't be able to intervene, but it's probably okay. we can make it configurable whether the writes are consolidated)
-		if(BYTES==2)
-		{
-			uint16_t L= addr;
-			uint16_t H = addr+1;
-			if(OP == MemOp::Write)
-			{
-				if(reversed) {
-					cpu_access_new<1,MemOp::Write>(snes,bank,H,value>>8,false,false);
-					if(intCheck) snes->mycpu.cpu_checkInt();
-					cpu_access_new<1,MemOp::Write>(snes,bank,L,value&0xFF,false,false);
-				} else {
-					cpu_access_new<1,MemOp::Write>(snes,bank,L,value&0xFF,false,false);
-					if(intCheck) snes->mycpu.cpu_checkInt();
-					cpu_access_new<1,MemOp::Write>(snes,bank,H,value>>8,false,false);
-				}
-				return 0;
-			}
-		}
-
-		//FOR NOW: assuming lorom+SRAM
-		//TODO: can we factor fastMem check out of this somehow?
-		//answer: YES: by keeping a fastrom bit set in a virtual bit 8 of the bank registers (which will never be changed), we can catch it here and map it differently
-
-		int retval;
-		switch(bank)
-		{
-			LAKESNES_UNREACHABLE_CASE
-
-			#define DOIT(X) case X: retval = cpu_access_new_work<X,OP>(snes,bank,addr,value); break;
-			DOIT(0)DOIT(1)DOIT(2)DOIT(3)DOIT(4)DOIT(5)DOIT(6)DOIT(7)DOIT(8)DOIT(9)DOIT(10)DOIT(11)DOIT(12)DOIT(13)DOIT(14)DOIT(15)
-			DOIT(16)DOIT(17)DOIT(18)DOIT(19)DOIT(20)DOIT(21)DOIT(22)DOIT(23)DOIT(24)DOIT(25)DOIT(26)DOIT(27)DOIT(28)DOIT(29)DOIT(30)DOIT(31)
-			DOIT(32)DOIT(33)DOIT(34)DOIT(35)DOIT(36)DOIT(37)DOIT(38)DOIT(39)DOIT(40)DOIT(41)DOIT(42)DOIT(43)DOIT(44)DOIT(45)DOIT(46)DOIT(47)
-			DOIT(48)DOIT(49)DOIT(50)DOIT(51)DOIT(52)DOIT(53)DOIT(54)DOIT(55)DOIT(56)DOIT(57)DOIT(58)DOIT(59)DOIT(60)DOIT(61)DOIT(62)DOIT(63)
-			DOIT(64)DOIT(65)DOIT(66)DOIT(67)DOIT(68)DOIT(69)DOIT(70)DOIT(71)DOIT(72)DOIT(73)DOIT(74)DOIT(75)DOIT(76)DOIT(77)DOIT(78)DOIT(79)
-			DOIT(80)DOIT(81)DOIT(82)DOIT(83)DOIT(84)DOIT(85)DOIT(86)DOIT(87)DOIT(88)DOIT(89)DOIT(90)DOIT(91)DOIT(92)DOIT(93)DOIT(94)DOIT(95)
-			DOIT(96)DOIT(97)DOIT(98)DOIT(99)DOIT(100)DOIT(101)DOIT(102)DOIT(103)DOIT(104)DOIT(105)DOIT(106)DOIT(107)DOIT(108)DOIT(109)DOIT(110)DOIT(111)
-			DOIT(112)DOIT(113)DOIT(114)DOIT(115)DOIT(116)DOIT(117)DOIT(118)DOIT(119)DOIT(120)DOIT(121)DOIT(122)DOIT(123)DOIT(124)DOIT(125)DOIT(126)DOIT(127)
-			DOIT(128)DOIT(129)DOIT(130)DOIT(131)DOIT(132)DOIT(133)DOIT(134)DOIT(135)DOIT(136)DOIT(137)DOIT(138)DOIT(139)DOIT(140)DOIT(141)DOIT(142)DOIT(143)
-			DOIT(144)DOIT(145)DOIT(146)DOIT(147)DOIT(148)DOIT(149)DOIT(150)DOIT(151)DOIT(152)DOIT(153)DOIT(154)DOIT(155)DOIT(156)DOIT(157)DOIT(158)DOIT(159)
-			DOIT(160)DOIT(161)DOIT(162)DOIT(163)DOIT(164)DOIT(165)DOIT(166)DOIT(167)DOIT(168)DOIT(169)DOIT(170)DOIT(171)DOIT(172)DOIT(173)DOIT(174)DOIT(175)
-			DOIT(176)DOIT(177)DOIT(178)DOIT(179)DOIT(180)DOIT(181)DOIT(182)DOIT(183)DOIT(184)DOIT(185)DOIT(186)DOIT(187)DOIT(188)DOIT(189)DOIT(190)DOIT(191)
-			DOIT(192)DOIT(193)DOIT(194)DOIT(195)DOIT(196)DOIT(197)DOIT(198)DOIT(199)DOIT(200)DOIT(201)DOIT(202)DOIT(203)DOIT(204)DOIT(205)DOIT(206)DOIT(207)
-			DOIT(208)DOIT(209)DOIT(210)DOIT(211)DOIT(212)DOIT(213)DOIT(214)DOIT(215)DOIT(216)DOIT(217)DOIT(218)DOIT(219)DOIT(220)DOIT(221)DOIT(222)DOIT(223)
-			DOIT(224)DOIT(225)DOIT(226)DOIT(227)DOIT(228)DOIT(229)DOIT(230)DOIT(231)DOIT(232)DOIT(233)DOIT(234)DOIT(235)DOIT(236)DOIT(237)DOIT(238)DOIT(239)
-			DOIT(240)DOIT(241)DOIT(242)DOIT(243)DOIT(244)DOIT(245)DOIT(246)DOIT(247)DOIT(248)DOIT(249)DOIT(250)DOIT(251)DOIT(252)DOIT(253)DOIT(254)DOIT(255)
-		}
-
-		return (uint8_t)retval;
+		snes->mydma.dma_handleDma(CYC);
+		snes->snes_runCycles(CYC);
 	}
-}
+
+	struct MemoryAccessInfo
+	{
+		RESOURCE resource;
+		int cyclesBefore, cyclesAfter;
+	};
+
+	std::pair<RESOURCE,int> evalMemMap(LakeSnes::Snes* snes, uint32_t address)
+	{
+		//some apparently finetuned logic taken from ares (ISC license) and judged to be more or less identical to this codebase's MIT license
+		//then again, I've revised this so it's a bit changed
+
+		//TODO RETHINK LATER
+		//The /ROMSEL signal on the card edge is literally just:
+		//low if ((A22 high or A15 high) and (A23-A17 not equal to 0x7E))
+		//The 5A22 translates the addresses and responds to offsets $4000..$43FF (if bank bit 6 is zero)
+
+		//Bank 7E/7F is always patched on top by the system
+		auto bank = address>>16;
+		if((bank>>1)==0x3F)
+			return std::make_pair(RESOURCE::WRAM, 8);
+
+		//Catch (almost) everything sent to the cart by the system.
+		//00-3f,80-bf:8000-ffff; 40-7f,c0-ff:0000-ffff
+		//TODO: like ares, pre-evaluate fastmem timings into a convenient place
+		if(address & 0x408000) 
+		{
+			if(address & 0x800000)
+				//possibly faster right half
+				return std::make_pair(RESOURCE::CARTSPECIAL_RIGHTHALF, snes->fastMem ? 6 : 8);
+			else 
+				//left slower half
+				return std::make_pair(RESOURCE::CARTSPECIAL_LEFTHALF, 8);
+		}
+
+		//A bit more for the cart to deal with.. but also, detects the low ram
+		//00-3f,80-bf:0000-1fff,6000-7fff
+		if((address + 0x6000) & 0x4000)
+		{
+			//isolate low ram (0000-1fff). everything else goes to cart special logic
+			if(address&0xE000)
+				if(address & 0x800000)
+					return std::make_pair(RESOURCE::CARTSPECIAL_RIGHTHALF, 8);
+				else 
+					return std::make_pair(RESOURCE::CARTSPECIAL_LEFTHALF, 8);
+			else 
+				return std::make_pair(RESOURCE::LOWRAM, 8);
+		}
+
+		//Detects the entire IO block range (except.. for.. a little bit..)
+		//00-3f,80-bf:2000-3fff,4200-5fff
+		if((address - 0x4000) & 0x7e00) return std::make_pair(RESOURCE::IOBLOCK,8);
+
+		//..and the remainder is this
+		//00-3f,80-bf:4000-41ff
+		return std::make_pair(RESOURCE::IOBLOCK_SLOW,12);
+	}
+
+	template<int BYTES, MemOp OP> int cpu_access_new(LakeSnes::Snes* snes, LakeSnes::Addr24 addr, int value, bool reversed, bool intCheck)
+	{
+		//TODO: move to snes module
+		//TODO: handle open bus saving
+		
+		constexpr bool WORDSIZED = (BYTES==2);
+		constexpr bool READTYPE = (OP == MemOp::Read || OP == MemOp::Fetch);
+
+		int rv = 0;
+
+		//Too complicated to optimize WORDSIZED for now.
+		//Just reduce it to two operations
+		if(WORDSIZED)
+		{
+			//intCheck causes a check for interrupt between bytes of a 2-byte access
+			//I'm not sure if it's an optimization to skip it sometimes, or what.
+			//Note: sometimes it looks like this CPU core was allowing accesses straddling bank boundaries to move to the next bank.
+			//I don't think that's right.. 
+			//It seems bsnes does it but ares does not?
+			if(reversed)
+			{
+				rv = cpu_access_new<1,OP>(snes,addr,value>>8,false,false);
+				if(intCheck) snes->mycpu.cpu_checkInt();
+				addr._addr += 1;
+				rv |= cpu_access_new<1,OP>(snes,addr,value,false,false)<<8;
+			}
+			else
+			{
+				rv = cpu_access_new<1,OP>(snes,addr,value,false,false);
+				if(intCheck) snes->mycpu.cpu_checkInt();
+				addr._addr += 1;
+				rv |= cpu_access_new<1,OP>(snes,addr,value>>8,false,false)<<8;
+			}
+			return rv;
+		}
+
+		//do maths on the address to figure out what resource is being accessed.
+		//we'll use the result multiple times, but the compiler will remember (via inlining) without having to recheck the result
+		auto eval = evalMemMap(snes,addr.eval());
+		MemoryAccessInfo info;
+		info.resource = eval.first;
+		info.cyclesBefore = eval.second;
+		info.cyclesAfter = 0;
+
+		//reads eat up all but 4 cycles now; and writes don't do anything differently... that's what ares does, too.
+		if(READTYPE)
+		{
+			info.cyclesAfter = 4;
+			info.cyclesBefore = info.cyclesBefore-4;
+		}
+
+		//tick cycles before the actual bus access
+		cpu_access_new_run_cyles(snes, info.cyclesBefore);
+
+		//actually implement the bus access
+		//(assuming LOROM for now)
+		int at;
+
+		switch(info.resource)
+		{
+			case RESOURCE::WRAM:
+				at = ((addr.bank() & 1) << 16) | addr.addr();
+				if(READTYPE)
+					rv = snes->ram[at];
+				else
+					snes->ram[at] = (uint8_t)value;
+				break;
+
+			case RESOURCE::LOWRAM:
+				at = addr.addr() & 0x1FFF;
+				if(READTYPE)
+					rv = snes->ram[at];
+				else
+					snes->ram[at] = (uint8_t)value;
+				break;
+
+			case RESOURCE::CARTSPECIAL_LEFTHALF:
+				if(READTYPE)
+					rv = snes->mycart.cart_readLoromByteNew(false,addr);
+				else 
+					snes->mycart.cart_writeLoromByteNew(false,addr,(uint8_t)value);
+				break;
+
+			case RESOURCE::CARTSPECIAL_RIGHTHALF:
+				if(READTYPE)
+					rv = snes->mycart.cart_readLoromByteNew(true,addr);
+				else
+					snes->mycart.cart_writeLoromByteNew(true,addr,(uint8_t)value);
+				break;
+
+			case RESOURCE::IOBLOCK:
+			case RESOURCE::IOBLOCK_SLOW:
+				if(READTYPE)
+					rv = snes->snes_rread(addr.addr());
+				else
+					snes->snes_write(addr.addr(),(uint8_t)value);
+				break;
+		}
+
+		if(info.cyclesAfter)
+			cpu_access_new_run_cyles(snes, info.cyclesAfter);
+
+		return rv;
+
+	}
+
+} //anonymouse namespace
 
 namespace LakeSnes
 {
@@ -422,27 +540,27 @@ namespace LakeSnes
 
 	uint8_t Cpu::cpu_read(Addr24 addr)
 	{
-		return cpu_access_new<1,MemOp::Read>(config.snes,addr.bank,addr.addr,0,false,false);
+		return cpu_access_new<1,MemOp::Read>(config.snes,addr,0,false,false);
 	}
 
 	uint16_t Cpu::cpu_readWord(Addr24 addr, bool intCheck)
 	{
-		auto addrl = (addr.bank<<16)+addr.addr;
-		auto addrh = ((addr.bank<<16)+addr.addr+1)&0xFFFFFF;
+		auto addrl = (addr.bank()<<16)+addr.addr();
+		auto addrh = ((addr.bank()<<16)+addr.addr()+1)&0xFFFFFF;
 		return cpu_readWord(addrl,addrh,intCheck);
 	}
 
 	void Cpu::cpu_write(Addr24 addr, uint8_t val)
 	{
-		cpu_access_new<1,MemOp::Write>(config.snes,addr.bank,addr.addr,val,false,false);
+		cpu_access_new<1,MemOp::Write>(config.snes,addr,val,false,false);
 	}
 
 	void Cpu::cpu_writeWord(Addr24 addr, uint16_t value, bool reversed, bool intCheck)
 	{
-		//auto addrl = (addr.bank<<16)+addr.addr;
-		//auto addrh = ((addr.bank<<16)+addr.addr+1)&0xFFFFFF;
-		//cpu_writeWord(addrl,addrh,value,reversed,intCheck);
-		cpu_access_new<2,MemOp::Write>(config.snes,addr.bank,addr.addr,value,reversed,intCheck);
+		auto addrl = (addr.bank()<<16)+addr.addr();
+		auto addrh = ((addr.bank()<<16)+addr.addr()+1)&0xFFFFFF;
+		cpu_writeWord(addrl,addrh,value,reversed,intCheck);
+		//cpu_access_new<2,MemOp::Write>(config.snes,addr.bank,addr.addr,value,reversed,intCheck);
 	}
 
 	void Cpu::cpu_write(uint32_t adr, uint8_t val) {
@@ -468,7 +586,7 @@ namespace LakeSnes
 	uint8_t Cpu::cpu_readOpcode()
 	{
 		intDelay = false;
-		return cpu_access_new<1,MemOp::Fetch>(config.snes,k,pc++,0,false,false);
+		return cpu_access_new<1,MemOp::Fetch>(config.snes,MakeAddr24(k,pc++),0,false,false);
 	}
 
 	uint16_t Cpu::cpu_readOpcodeWord(bool intCheck) {
@@ -602,7 +720,7 @@ namespace LakeSnes
 		}
 	}
 
-	Cpu::Addr24 Cpu::cpu_adrImm(bool xFlag) {
+	Addr24 Cpu::cpu_adrImm(bool xFlag) {
 		if((xFlag && xf) || (!xFlag && mf)) {
 			return MakeAddr24(k,pc++);
 		} else {
@@ -612,34 +730,34 @@ namespace LakeSnes
 		}
 	}
 
-	Cpu::Addr24 Cpu::cpu_adrDp() {
+	Addr24 Cpu::cpu_adrDp() {
 		uint8_t adr = cpu_readOpcode();
 		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
 		return MakeAddr24(dp,adr);
 	}
 
-	Cpu::Addr24 Cpu::cpu_adrDpx() {
+	Addr24 Cpu::cpu_adrDpx() {
 		uint8_t adr = cpu_readOpcode();
 		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
 		cpu_idle();
 		return MakeAddr24(dp,adr+x);
 	}
 
-	Cpu::Addr24 Cpu::cpu_adrDpy() {
+	Addr24 Cpu::cpu_adrDpy() {
 		uint8_t adr = cpu_readOpcode();
 		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
 		cpu_idle();
 		return MakeAddr24(dp,adr+y);
 	}
 
-	Cpu::Addr24 Cpu::cpu_adrIdp() {
+	Addr24 Cpu::cpu_adrIdp() {
 		uint8_t adr = cpu_readOpcode();
 		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
 		uint16_t pointer = cpu_readWord((dp + adr) & 0xffff, (dp + adr + 1) & 0xffff, false);
 		return MakeAddr24(db,pointer);
 	}
 
-	Cpu::Addr24 Cpu::cpu_adrIdx() {
+	Addr24 Cpu::cpu_adrIdx() {
 		uint8_t adr = cpu_readOpcode();
 		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
 		cpu_idle();
@@ -647,7 +765,7 @@ namespace LakeSnes
 		return MakeAddr24(db,pointer);
 	}
 
-	Cpu::Addr24 Cpu::cpu_adrIdy(bool write) {
+	Addr24 Cpu::cpu_adrIdy(bool write) {
 		uint8_t adr = cpu_readOpcode();
 		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
 		uint16_t pointer = cpu_readWord((dp + adr) & 0xffff, (dp + adr + 1) & 0xffff, false);
@@ -656,7 +774,7 @@ namespace LakeSnes
 		return MakeAddr24(db,pointer+y);
 	}
 
-	Cpu::Addr24 Cpu::cpu_adrIdl() {
+	Addr24 Cpu::cpu_adrIdl() {
 		uint8_t adr = cpu_readOpcode();
 		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
 		uint32_t pointer = cpu_readWord((dp + adr) & 0xffff, (dp + adr + 1) & 0xffff, false);
@@ -664,7 +782,7 @@ namespace LakeSnes
 		return MakeAddr24(bank, pointer);
 	}
 
-	Cpu::Addr24 Cpu::cpu_adrIly() {
+	Addr24 Cpu::cpu_adrIly() {
 		uint8_t adr = cpu_readOpcode();
 		if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
 		uint32_t pointer = cpu_readWord((dp + adr) & 0xffff, (dp + adr + 1) & 0xffff, false);
@@ -672,13 +790,13 @@ namespace LakeSnes
 		return MakeAddr24(bank, pointer + y);
 	}
 
-	Cpu::Addr24 Cpu::cpu_adrSr() {
+	Addr24 Cpu::cpu_adrSr() {
 		uint8_t adr = cpu_readOpcode();
 		cpu_idle();
 		return MakeAddr24(0,sp + adr); //note: DB is 0 for stack
 	}
 
-	Cpu::Addr24 Cpu::cpu_adrIsy() {
+	Addr24 Cpu::cpu_adrIsy() {
 		uint8_t adr = cpu_readOpcode();
 		cpu_idle();
 		uint16_t pointer = cpu_readWord((sp + adr) & 0xffff, (sp + adr + 1) & 0xffff, false);
@@ -687,12 +805,12 @@ namespace LakeSnes
 		return MakeAddr24(db,pointer);
 	}
 
-	Cpu::Addr24 Cpu::cpu_adrAbs() {
+	Addr24 Cpu::cpu_adrAbs() {
 		uint16_t adr = cpu_readOpcodeWord(false);
 		return MakeAddr24(db,adr);
 	}
 
-	Cpu::Addr24 Cpu::cpu_adrAbx(bool write) {
+	Addr24 Cpu::cpu_adrAbx(bool write) {
 		uint16_t adr = cpu_readOpcodeWord(false);
 		// writing opcode or x = 0 or page crossed: 1 extra cycle
 		if(write || !xf || ((adr >> 8) != ((adr + x) >> 8))) cpu_idle();
@@ -700,7 +818,7 @@ namespace LakeSnes
 		return MakeAddr24(db,adr);
 	}
 
-	Cpu::Addr24 Cpu::cpu_adrAby(bool write) {
+	Addr24 Cpu::cpu_adrAby(bool write) {
 		uint16_t adr = cpu_readOpcodeWord(false);
 		// writing opcode or x = 0 or page crossed: 1 extra cycle
 		if(write || !xf || ((adr >> 8) != ((adr + y) >> 8))) cpu_idle();
@@ -708,13 +826,13 @@ namespace LakeSnes
 		return MakeAddr24(db,adr);
 	}
 
-	Cpu::Addr24 Cpu::cpu_adrAbl() {
+	Addr24 Cpu::cpu_adrAbl() {
 		uint32_t adr = cpu_readOpcodeWord(false);
 		auto bank = cpu_readOpcode();
 		return MakeAddr24(bank,adr);
 	}
 
-	Cpu::Addr24 Cpu::cpu_adrAlx() {
+	Addr24 Cpu::cpu_adrAlx() {
 		uint32_t adr = cpu_readOpcodeWord(false);
 		auto bank = cpu_readOpcode();
 		adr += x;

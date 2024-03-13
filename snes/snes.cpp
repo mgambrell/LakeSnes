@@ -542,6 +542,10 @@ namespace LakeSnes
 		snes_runCycles(6);
 	}
 
+	uint8_t Snes::snes_cpuRead(Addr24 addr) {
+		return snes_cpuRead(addr.eval());
+	}
+
 	uint8_t Snes::snes_cpuRead(uint32_t adr) {
 		const int kCycles = access_time[adr] - 4;
 		mydma.dma_handleDma(kCycles);

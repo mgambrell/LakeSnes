@@ -9,6 +9,7 @@
 #include "ppu.h"
 #include "cart.h"
 #include "input.h"
+#include "Add24.h"
 
 namespace LakeSnes
 {
@@ -32,9 +33,14 @@ namespace LakeSnes
 		void snes_cpuIdle(bool waiting);
 		uint8_t snes_cpuRead(uint32_t adr);
 		void snes_cpuWrite(uint32_t adr, uint8_t val);
+
+		uint8_t snes_cpuRead(Addr24 addr);
+
 		// debugging
 		void snes_runCpuCycle();
 		void snes_runSpcCycle();
+
+		uint8_t snes_cpuReadWith(uint32_t adr);
 
 		// snes_other.c functions:
 
@@ -50,13 +56,14 @@ namespace LakeSnes
 		int snes_saveState(uint8_t* data);
 		bool snes_loadState(uint8_t* data, int size);
 
+		uint8_t snes_rread(uint32_t adr);
+
 	private:
 		void snes_runCycle();
 		void snes_catchupApu();
 		void snes_doAutoJoypad();
 		uint8_t snes_readReg(uint16_t adr);
 		void snes_writeReg(uint16_t adr, uint8_t val);
-		uint8_t snes_rread(uint32_t adr);
 
 	private:
 		int snes_getAccessTime(uint32_t adr);

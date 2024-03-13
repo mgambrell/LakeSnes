@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+#include "Add24.h"
+
 namespace LakeSnes
 {
 	class Snes;
@@ -22,21 +24,6 @@ namespace LakeSnes
 		void cpu_checkInt();
 
 	private:
-
-		struct Addr24
-		{
-			uint8_t bank;
-			uint8_t dummy;
-			uint16_t addr;
-
-			uint16_t low() const { return addr; }
-			uint16_t high() const { return (uint16_t)(addr+1); }
-		};
-
-		Addr24 MakeAddr24(uint8_t bank, uint16_t addr)
-		{
-			return Addr24 { bank, 0, addr };
-		}
 
 		void cpu_write(uint32_t adr, uint8_t val);
 		void cpu_idle();

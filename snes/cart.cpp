@@ -113,6 +113,46 @@ namespace LakeSnes
 		}
 	}
 
+	void Cart::cart_writeLoromByteNew(bool RIGHT, Addr24 addr, uint8_t value)
+	{
+		auto a = addr.addr();
+		auto b = addr.bank();
+
+		if(!RIGHT)
+		{
+			if((b&0x70)==0x70)
+				ram[(((b) << 15) | a) & (config.ramSize - 1)] = value;
+		}
+	}
+
+	uint8_t Cart::cart_readLoromByteNew(bool RIGHT, Addr24 addr)
+	{
+		auto a = addr.addr();
+		auto b = addr.bank();
+		
+		//TODO: sram check (assumed for now)
+		//this fun logic can do the 0x70 check in a sneaky way..
+		//if((~(b&0x70))&0x70)
+		//but I think a comparison will be quicker
+
+		if(RIGHT)
+		{
+			if(a&0x8000)
+				return config.rom[(((b&0x7F) << 15) | (a & 0x7fff)) & (config.romSize - 1)];
+			else
+				return config.snes->openBus;
+		}
+		else
+		{
+			if(a&0x8000)
+				return config.rom[((b << 15) | (a & 0x7fff)) & (config.romSize - 1)];
+			if((b&0x70)==0x70)
+				return ram[(((b) << 15) | a) & (config.ramSize - 1)];
+			else
+				return config.snes->openBus;
+		}
+	}
+
 	uint8_t Cart::cart_readLorom(uint8_t bank, uint16_t adr) {
 		if(((bank >= 0x70 && bank < 0x7e) || bank >= 0xf0) && adr < 0x8000 && config.ramSize > 0) {
 			// banks 70-7e and f0-ff, adr 0000-7fff
