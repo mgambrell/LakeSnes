@@ -26,7 +26,15 @@ namespace LakeSnes
 		uint8_t dma_read(uint8_t bank, uint16_t adr);
 		void dma_write(uint8_t bank, uint16_t adr, uint8_t val);
 
-	private:
+		void cpu_doOpcode(uint8_t opcode);
+		void _cpu_doOpcode(uint8_t opcode);
+
+		void doit_T_T(uint8_t opcode);
+		void doit_T_F(uint8_t opcode);
+		void doit_F_T(uint8_t opcode);
+		void doit_F_F(uint8_t opcode);
+
+	protected:
 
 		void cpu_idle();
 		void cpu_idleWait();
@@ -41,7 +49,8 @@ namespace LakeSnes
 		uint16_t cpu_pullWord(bool intCheck);
 		void cpu_pushWord(uint16_t value, bool intCheck);
 		void cpu_doInterrupt();
-		void cpu_doOpcode(uint8_t opcode);
+		
+
 
 		uint8_t cpu_read(Addr24 addr);
 		uint16_t cpu_readWord(Addr24 addr, bool intCheck);
@@ -125,8 +134,8 @@ namespace LakeSnes
 		bool n;
 		bool i;
 		bool d;
-		bool xf;
-		bool mf;
+		bool _xf;
+		bool _mf;
 		bool e;
 		// power state (WAI/STP)
 		bool waiting;
@@ -138,5 +147,4 @@ namespace LakeSnes
 		bool intDelay;
 		bool resetWanted;
 	};
-
 }
