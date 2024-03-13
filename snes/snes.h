@@ -31,8 +31,7 @@ namespace LakeSnes
 		uint8_t snes_read(uint32_t adr);
 		void snes_write(uint32_t adr, uint8_t val);
 		void snes_cpuIdle(bool waiting);
-		uint8_t snes_cpuRead(uint32_t adr);
-		void snes_cpuWrite(uint32_t adr, uint8_t val);
+		//void snes_cpuWrite(uint32_t adr, uint8_t val);
 
 		uint8_t snes_cpuRead(Addr24 addr);
 

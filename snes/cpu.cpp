@@ -319,11 +319,6 @@ namespace LakeSnes
 		cpu_access_new<2,MemOp::Write>(config.snes,addr,value,reversed,intCheck);
 	}
 
-	void Cpu::cpu_write(uint32_t adr, uint8_t val) {
-		intDelay = false;
-		config.snes->snes_cpuWrite(adr, val);
-	}
-
 	void Cpu::cpu_idle() {
 		intDelay = false;
 		config.snes->snes_cpuIdle(false);

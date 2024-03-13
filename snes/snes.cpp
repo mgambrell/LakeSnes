@@ -542,27 +542,6 @@ namespace LakeSnes
 		snes_runCycles(6);
 	}
 
-	uint8_t Snes::snes_cpuRead(Addr24 addr) {
-		return snes_cpuRead(addr.eval());
-	}
-
-	uint8_t Snes::snes_cpuRead(uint32_t adr) {
-		const int kCycles = access_time[adr] - 4;
-		mydma.dma_handleDma(kCycles);
-		snes_runCycles(kCycles);
-		uint8_t rv = snes_read(adr);
-		mydma.dma_handleDma(4);
-		snes_runCycles(4);
-		return rv;
-	}
-
-	void Snes::snes_cpuWrite(uint32_t adr, uint8_t val) {
-		const int kCycles = access_time[adr];
-		mydma.dma_handleDma(kCycles);
-		snes_runCycles(kCycles);
-		snes_write(adr, val);
-	}
-
 	// debugging
 
 	void Snes::snes_runCpuCycle() {

@@ -24,7 +24,6 @@ namespace LakeSnes
 
 	private:
 
-		void cpu_write(uint32_t adr, uint8_t val);
 		void cpu_idle();
 		void cpu_idleWait();
 		uint8_t cpu_readOpcode();
