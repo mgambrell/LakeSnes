@@ -14,7 +14,10 @@ namespace
 {
 	enum class MemOp
 	{
-		Fetch, Read, Write, DmaRead, DmaWrite
+		Idle,
+		Fetch, Read,
+		Write,
+		DmaRead, DmaWrite,
 	};
 
 	constexpr bool MemOp_IsReadType(MemOp OP)
@@ -56,6 +59,12 @@ namespace
 		constexpr bool WORDSIZED = (BYTES==2);
 		constexpr bool READTYPE = MemOp_IsReadType(OP);
 		constexpr bool DMATYPE = MemOp_IsDmaType(OP);
+
+		if(OP == MemOp::Idle)
+		{
+			cpu_access_new_run_cyles_before<OP>(snes, 6);
+			return 0;
+		}
 
 		int rv = 0;
 		int at = 0;
@@ -340,12 +349,12 @@ namespace LakeSnes
 
 	void Cpu::cpu_idle() {
 		intDelay = false;
-		config.snes->snes_cpuIdle(false);
+		cpu_access_new<1,MemOp::Idle>(config.snes,{0});
 	}
 
 	void Cpu::cpu_idleWait() {
 		intDelay = false;
-		config.snes->snes_cpuIdle(true);
+		cpu_access_new<1,MemOp::Idle>(config.snes,{0});
 	}
 
 	void Cpu::cpu_checkInt() {

@@ -68,14 +68,24 @@ namespace LakeSnes
 		config.romSize = romSize;
 		config.ramSize = ramSize;
 
-		config.rom = (uint8_t*)malloc(romSize);
+		//allocate 8MB of data. this way we can pre-mirror the data, which therefore doesn't need to be done at runtime
+		//we've applied the mirroring in a sloppy way, but it's simple at least
+		//I'm not sure what's to be done for e.g. 96 megabit romhacks..
+		config.rom = (uint8_t*)malloc(8*1024*1024);
+		int dst = 0;
+		while(dst < 8*1024*1024)
+		{
+			int sz = std::min(romSize,8*1024*1024-dst);
+			memcpy(config.rom+dst,rom,sz);
+			dst += sz;
+		}
+
 		if(ramSize > 0) {
 			ram = (uint8_t*)malloc(ramSize);
 			memset(ram, 0, ramSize);
 		} else {
 			ram = NULL;
 		}
-		memcpy(config.rom, rom, romSize);
 	}
 
 	bool Cart::cart_handleBattery(bool save, uint8_t* data, int* size) {
@@ -138,14 +148,14 @@ namespace LakeSnes
 		if(RIGHT)
 		{
 			if(a&0x8000)
-				return config.rom[(((b&0x7F) << 15) | (a & 0x7fff)) & (config.romSize - 1)];
+				return config.rom[(((b&0x7F) << 15) | (a & 0x7fff))];
 			else
 				return addr.openBus();
 		}
 		else
 		{
 			if(a&0x8000)
-				return config.rom[((b << 15) | (a & 0x7fff)) & (config.romSize - 1)];
+				return config.rom[((b << 15) | (a & 0x7fff))];
 			if((b&0x70)==0x70)
 				return ram[(((b) << 15) | a) & (config.ramSize - 1)];
 			else

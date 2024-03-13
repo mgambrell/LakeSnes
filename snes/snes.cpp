@@ -476,12 +476,6 @@ namespace LakeSnes
 		}
 	}
 
-	void Snes::snes_cpuIdle(bool waiting) {
-		(void)waiting;
-		mydma.dma_handleDma(6);
-		snes_runCycles(6);
-	}
-
 	// debugging
 
 	void Snes::snes_runCpuCycle() {

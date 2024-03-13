@@ -28,7 +28,6 @@ namespace LakeSnes
 		void snes_syncCycles(bool start, int syncCycles);
 		uint8_t snes_readBBus(uint8_t adr);
 		void snes_writeBBus(uint8_t adr, uint8_t val);
-		void snes_cpuIdle(bool waiting);
 		void snes_writeIO(uint16_t adr, uint8_t val);
 		uint8_t snes_readIO(uint16_t adr);
 

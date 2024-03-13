@@ -42,10 +42,10 @@ namespace LakeSnes
 	public:
 		struct {
 			Snes* snes;
-			uint8_t type;
 			uint8_t* rom;
 			uint32_t romSize;
 			uint32_t ramSize;
+			uint8_t type;
 		} config;
 
 		uint8_t* ram;
