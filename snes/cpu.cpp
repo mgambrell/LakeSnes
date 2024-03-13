@@ -24,77 +24,21 @@ namespace
 		Fetch, Read, Write
 	};
 
-	enum class RESOURCE
+	template<bool READING> void cpu_access_new_run_cyles_before(LakeSnes::Snes* snes, int CYC)
 	{
-		WRAM,
-		LOWRAM,
-		IOBLOCK,
-		IOBLOCK_SLOW,
-		CARTSPECIAL_LEFTHALF,
-		CARTSPECIAL_RIGHTHALF
-	};
-
-	void cpu_access_new_run_cyles(LakeSnes::Snes* snes, int CYC)
-	{
+		if(READING)
+			CYC = CYC-4;
 		snes->mydma.dma_handleDma(CYC);
 		snes->snes_runCycles(CYC);
 	}
 
-	struct MemoryAccessInfo
+	template<bool READING> void cpu_access_new_run_cyles_after(LakeSnes::Snes* snes)
 	{
-		RESOURCE resource;
-		int cyclesBefore, cyclesAfter;
-	};
-
-	std::pair<RESOURCE,int> evalMemMap(LakeSnes::Snes* snes, uint32_t address)
-	{
-		//some apparently finetuned logic taken from ares (ISC license) and judged to be more or less identical to this codebase's MIT license
-		//then again, I've revised this so it's a bit changed
-
-		//TODO RETHINK LATER
-		//The /ROMSEL signal on the card edge is literally just:
-		//low if ((A22 high or A15 high) and (A23-A17 not equal to 0x7E))
-		//The 5A22 translates the addresses and responds to offsets $4000..$43FF (if bank bit 6 is zero)
-
-		//Bank 7E/7F is always patched on top by the system
-		auto bank = address>>16;
-		if((bank>>1)==0x3F)
-			return std::make_pair(RESOURCE::WRAM, 8);
-
-		//Catch (almost) everything sent to the cart by the system.
-		//00-3f,80-bf:8000-ffff; 40-7f,c0-ff:0000-ffff
-		//TODO: like ares, pre-evaluate fastmem timings into a convenient place
-		if(address & 0x408000) 
+		if(READING)
 		{
-			if(address & 0x800000)
-				//possibly faster right half
-				return std::make_pair(RESOURCE::CARTSPECIAL_RIGHTHALF, snes->fastMem ? 6 : 8);
-			else 
-				//left slower half
-				return std::make_pair(RESOURCE::CARTSPECIAL_LEFTHALF, 8);
+			snes->mydma.dma_handleDma(4);
+			snes->snes_runCycles(4);
 		}
-
-		//A bit more for the cart to deal with.. but also, detects the low ram
-		//00-3f,80-bf:0000-1fff,6000-7fff
-		if((address + 0x6000) & 0x4000)
-		{
-			//isolate low ram (0000-1fff). everything else goes to cart special logic
-			if(address&0xE000)
-				if(address & 0x800000)
-					return std::make_pair(RESOURCE::CARTSPECIAL_RIGHTHALF, 8);
-				else 
-					return std::make_pair(RESOURCE::CARTSPECIAL_LEFTHALF, 8);
-			else 
-				return std::make_pair(RESOURCE::LOWRAM, 8);
-		}
-
-		//Detects the entire IO block range (except.. for.. a little bit..)
-		//00-3f,80-bf:2000-3fff,4200-5fff
-		if((address - 0x4000) & 0x7e00) return std::make_pair(RESOURCE::IOBLOCK,8);
-
-		//..and the remainder is this
-		//00-3f,80-bf:4000-41ff
-		return std::make_pair(RESOURCE::IOBLOCK_SLOW,12);
 	}
 
 	template<int BYTES, MemOp OP> int cpu_access_new(LakeSnes::Snes* snes, const LakeSnes::Addr24 addr, int value = 0, bool reversed = false, bool intCheck = false)
@@ -106,6 +50,7 @@ namespace
 		constexpr bool READTYPE = (OP == MemOp::Read || OP == MemOp::Fetch);
 
 		int rv = 0;
+		int at = 0;
 
 		//Too complicated to optimize WORDSIZED for now.
 		//Just reduce it to two operations
@@ -136,79 +81,126 @@ namespace
 			return rv;
 		}
 
-		//do maths on the address to figure out what resource is being accessed.
-		//we'll use the result multiple times, but the compiler will remember (via inlining) without having to recheck the result
-		auto eval = evalMemMap(snes,addr.eval());
-		MemoryAccessInfo info;
-		info.resource = eval.first;
-		info.cyclesBefore = eval.second;
-		info.cyclesAfter = 0;
+		auto a = addr.addr();
+		auto b = addr.bank();
 
-		//reads eat up all but 4 cycles now; and writes don't do anything differently... that's what ares does, too.
+		//some apparently finetuned logic taken from ares (ISC license) and judged to be more or less identical to this codebase's MIT license
+		//then again, I've revised this so it's a bit changed
+
+		//TODO RETHINK LATER
+		//The /ROMSEL signal on the card edge is literally just:
+		//low if ((A22 high or A15 high) and (A23-A17 not equal to 0x7E))
+		//The 5A22 translates the addresses and responds to offsets $4000..$43FF (if bank bit 6 is zero)
+
+		//Bank 7E/7F is always patched on top by the system
+		if((b>>1)==0x3F)
+		{
+			cpu_access_new_run_cyles_before<READTYPE>(snes, 8);
+			goto CASE_WRAM;
+		}
+
+		//Catch (almost) everything sent to the cart by the system.
+		//00-3f,80-bf:8000-ffff; 40-7f,c0-ff:0000-ffff
+		//TODO: like ares, pre-evaluate fastmem timings into a convenient place
+		if(a & 0x408000) 
+		{
+			if(a & 0x800000)
+			{
+				cpu_access_new_run_cyles_before<READTYPE>(snes, snes->fastMem ? 6 : 8);
+				goto CASE_CARTSPECIAL_RIGHTHALF;
+			}
+			else
+			{
+				cpu_access_new_run_cyles_before<READTYPE>(snes, 8);
+				goto CASE_CARTSPECIAL_LEFTHALF;
+			}
+		}
+
+		//A bit more for the cart to deal with.. but also, detects the low ram
+		//00-3f,80-bf:0000-1fff,6000-7fff
+		if((a + 0x6000) & 0x4000)
+		{
+			//isolate low ram (0000-1fff). everything else goes to cart special logic
+			if(a&0xE000)
+			{
+				if(a & 0x800000)
+				{
+					cpu_access_new_run_cyles_before<READTYPE>(snes, snes->fastMem ? 6 : 8);
+					goto CASE_CARTSPECIAL_RIGHTHALF;
+				}
+				else
+				{
+					cpu_access_new_run_cyles_before<READTYPE>(snes, 8);
+					goto CASE_CARTSPECIAL_LEFTHALF;
+				}
+			}
+			else
+			{
+				cpu_access_new_run_cyles_before<READTYPE>(snes, 8);
+				goto CASE_LOWRAM;
+			}
+		}
+
+		//Detects the entire IO block range (except.. for.. a little bit..)
+		//00-3f,80-bf:2000-3fff,4200-5fff
+		if((a - 0x4000) & 0x7e00) 
+		{
+			cpu_access_new_run_cyles_before<READTYPE>(snes, 8);
+			goto CASE_IOBLOCK;
+		}
+
+		//..and the remainder is this
+		//00-3f,80-bf:4000-41ff
+		cpu_access_new_run_cyles_before<READTYPE>(snes, 12);
+		goto CASE_IOBLOCK;
+
+		//.............................
+
+	CASE_WRAM:
+		at = ((addr.bank() & 1) << 16) | addr.addr();
 		if(READTYPE)
-		{
-			info.cyclesAfter = 4;
-			info.cyclesBefore = info.cyclesBefore-4;
-		}
+			rv = snes->ram[at];
+		else
+			snes->ram[at] = (uint8_t)value;
+		goto CASE_END;
 
-		//tick cycles before the actual bus access
-		cpu_access_new_run_cyles(snes, info.cyclesBefore);
+	CASE_LOWRAM:
+		at = addr.addr() & 0x1FFF;
+		if(READTYPE)
+			rv = snes->ram[at];
+		else
+			snes->ram[at] = (uint8_t)value;
+		goto CASE_END;
 
-		//actually implement the bus access
-		//(assuming LOROM for now)
-		int at;
+	CASE_CARTSPECIAL_LEFTHALF:
+		if(READTYPE)
+			rv = snes->mycart.cart_readLoromByteNew(false,addr);
+		else 
+			snes->mycart.cart_writeLoromByteNew(false,addr,(uint8_t)value);
+		goto CASE_END;
 
-		switch(info.resource)
-		{
-			LAKESNES_UNREACHABLE_DEFAULT
+	CASE_CARTSPECIAL_RIGHTHALF:
+		if(READTYPE)
+			rv = snes->mycart.cart_readLoromByteNew(true,addr);
+		else
+			snes->mycart.cart_writeLoromByteNew(true,addr,(uint8_t)value);
+		goto CASE_END;
 
-			case RESOURCE::WRAM:
-				at = ((addr.bank() & 1) << 16) | addr.addr();
-				if(READTYPE)
-					rv = snes->ram[at];
-				else
-					snes->ram[at] = (uint8_t)value;
-				break;
+	CASE_IOBLOCK:
+		if(READTYPE)
+			rv = snes->snes_rread(addr.addr());
+		else
+			snes->snes_write(addr.addr(),(uint8_t)value);
+		goto CASE_END;
 
-			case RESOURCE::LOWRAM:
-				at = addr.addr() & 0x1FFF;
-				if(READTYPE)
-					rv = snes->ram[at];
-				else
-					snes->ram[at] = (uint8_t)value;
-				break;
+	CASE_END:
 
-			case RESOURCE::CARTSPECIAL_LEFTHALF:
-				if(READTYPE)
-					rv = snes->mycart.cart_readLoromByteNew(false,addr);
-				else 
-					snes->mycart.cart_writeLoromByteNew(false,addr,(uint8_t)value);
-				break;
-
-			case RESOURCE::CARTSPECIAL_RIGHTHALF:
-				if(READTYPE)
-					rv = snes->mycart.cart_readLoromByteNew(true,addr);
-				else
-					snes->mycart.cart_writeLoromByteNew(true,addr,(uint8_t)value);
-				break;
-
-			case RESOURCE::IOBLOCK:
-			case RESOURCE::IOBLOCK_SLOW:
-				if(READTYPE)
-					rv = snes->snes_rread(addr.addr());
-				else
-					snes->snes_write(addr.addr(),(uint8_t)value);
-				break;
-		}
-
-		if(info.cyclesAfter)
-			cpu_access_new_run_cyles(snes, info.cyclesAfter);
+		cpu_access_new_run_cyles_after<READTYPE>(snes);
 
 		return rv;
-
 	}
 
-} //anonymouse namespace
+} //anonymous namespace
 
 namespace LakeSnes
 {
