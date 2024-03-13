@@ -52,6 +52,7 @@ namespace LakeSnes
 		frames = 0;
 		cycles = 0;
 		syncCycle = 0;
+		pendingCycles = 0;
 		hIrqEnabled = false;
 		vIrqEnabled = false;
 		nmiEnabled = false;

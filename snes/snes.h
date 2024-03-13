@@ -70,12 +70,14 @@ namespace LakeSnes
 		Dma mydma;
 
 		// frame timing
+		uint64_t cycles;
 		uint16_t hPos;
 		uint16_t vPos;
 		uint32_t frames;
-		uint64_t cycles;
 		uint64_t syncCycle;
 		uint32_t nextHoriEvent;
+		uint8_t pendingCycles = 0;
+
 		// cpu handling
 		// nmi / irq
 		bool hIrqEnabled;

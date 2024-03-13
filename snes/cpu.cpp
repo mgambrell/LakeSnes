@@ -1,6 +1,8 @@
 //what the heck? this slows things down.
 //#define LAKESNES_CONFIG_CPU_ONE_SYNC_PER_BUS_ACCESSES 1
 
+#define LAKESNES_CONFIG_CPU_ONE_SYNC_PER_INSTRUCTION
+
 #include "conf.h"
 
 #include "cpu.h"
@@ -33,6 +35,30 @@ namespace
 		return (OP == MemOp::DmaRead || OP == MemOp::DmaWrite);
 	}
 
+	void _actually_run_cyles(LakeSnes::Snes* snes, int CYC)
+	{
+		snes->mydma.dma_handleDma(CYC);
+		snes->snes_runCycles(CYC);
+	}
+
+	void _catchup_cycles(LakeSnes::Snes* snes)
+	{
+		#ifdef LAKESNES_CONFIG_CPU_ONE_SYNC_PER_INSTRUCTION
+		_actually_run_cyles(snes, snes->pendingCycles);
+		snes->pendingCycles = 0;
+		#endif
+	}
+
+	void _inner_cpu_access_new_run_cyles(LakeSnes::Snes* snes, int CYC)
+	{
+		#ifdef LAKESNES_CONFIG_CPU_ONE_SYNC_PER_INSTRUCTION
+		//just bank them for later
+		snes->pendingCycles += CYC;
+		#else
+		_actually_run_cyles(snes,CYC);
+		#endif
+	}
+
 	template<MemOp OP> void cpu_access_new_run_cyles_before(LakeSnes::Snes* snes, int CYC)
 	{
 		if(MemOp_IsDmaType(OP)) return;
@@ -50,8 +76,7 @@ namespace
 
 		CYC -= defer;
 
-		snes->mydma.dma_handleDma(CYC);
-		snes->snes_runCycles(CYC);
+		_inner_cpu_access_new_run_cyles(snes, CYC);
 	}
 
 	template<MemOp OP> void cpu_access_new_run_cyles_after(LakeSnes::Snes* snes)
@@ -66,8 +91,7 @@ namespace
 		//for reads, 4 cycles have been deferred until now.
 		if(MemOp_IsReadType(OP))
 		{
-			snes->mydma.dma_handleDma(4);
-			snes->snes_runCycles(4);
+			_inner_cpu_access_new_run_cyles(snes, 4);
 		}
 	}
 
@@ -311,11 +335,11 @@ namespace LakeSnes
 			cpu_setFlags(cpu_getFlags()); // updates x and m flags, clears upper half of x and y if needed
 			k = 0;
 			pc = cpu_readWord(MakeAddr24(0,0xfffc),false);
-			return;
+			goto END;
 		}
 		if(stopped) {
 			cpu_idleWait();
-			return;
+			goto END;
 		}
 		if(waiting) {
 			if(irqWanted || nmiWanted) {
@@ -323,10 +347,10 @@ namespace LakeSnes
 				cpu_idle();
 				cpu_checkInt();
 				cpu_idle();
-				return;
+				goto END;
 			} else {
 				cpu_idleWait();
-				return;
+				goto END;
 			}
 		}
 		// not stopped or waiting, execute a opcode or go to interrupt
@@ -337,6 +361,8 @@ namespace LakeSnes
 			uint8_t opcode = cpu_readOpcode();
 			cpu_doOpcode(opcode);
 		}
+	END:
+		_catchup_cycles(config.snes);
 	}
 
 	void Cpu::cpu_nmi() {
