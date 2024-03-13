@@ -360,10 +360,11 @@ namespace LakeSnes
 		return cpu_access_new<1,MemOp::Fetch>(config.snes,MakeAddr24(k,pc++),0,false,false);
 	}
 
-	uint16_t Cpu::cpu_readOpcodeWord(bool intCheck) {
-		uint8_t low = cpu_readOpcode();
-		if(intCheck) cpu_checkInt();
-		return low | (cpu_readOpcode() << 8);
+	uint16_t Cpu::cpu_readOpcodeWord(bool intCheck)
+	{
+		auto rv = (uint16_t)cpu_access_new<2,MemOp::Fetch>(config.snes,MakeAddr24(k,pc),0,false,intCheck);
+		pc+=2;
+		return rv;
 	}
 
 	uint8_t Cpu::cpu_getFlags() {
