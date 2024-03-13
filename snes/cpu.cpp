@@ -15,7 +15,7 @@
 #define LAKESNES_UNREACHABLE __builtin_unreachable()
 #define LAKENES_NOINLINE __attribute__((noinline)) 
 #endif
-#define LAKESNES_UNREACHABLE_CASE default: LAKESNES_UNREACHABLE; break;
+#define LAKESNES_UNREACHABLE_DEFAULT default: LAKESNES_UNREACHABLE; break;
 
 namespace
 {
@@ -23,18 +23,6 @@ namespace
 	{
 		Fetch, Read, Write
 	};
-
-	//for verification
-	constexpr int test_getAccessTime(bool fastMem, int bank, int adr) {
-		if((bank < 0x40 || (bank >= 0x80 && bank < 0xc0)) && adr < 0x8000) {
-			// 00-3f,80-bf:0-7fff
-			if(adr < 0x2000 || adr >= 0x6000) return 8; // 0-1fff, 6000-7fff
-			if(adr < 0x4000 || adr >= 0x4200) return 6; // 2000-3fff, 4200-5fff
-			return 12; // 4000-41ff
-		}
-		// 40-7f,co-ff:0000-ffff, 00-3f,80-bf:8000-ffff
-		return (fastMem && bank >= 0x80) ? 6 : 8; // depends on setting in banks 80+
-	}
 
 	enum class RESOURCE
 	{
@@ -45,225 +33,6 @@ namespace
 		CARTSPECIAL_LEFTHALF,
 		CARTSPECIAL_RIGHTHALF
 	};
-
-	struct In {
-		int bank, addr;
-	} in;
-
-	struct Out {
-		int offset;
-		RESOURCE res;
-	} out;
-
-	#if 0
-	template<int BANK, MemOp OP> int cpu_access_new_work(LakeSnes::Snes* snes, int bank, uint16_t addr, int value)
-	{
-		#define CASE10(X) \
-			case 0x00+X: case 0x01+X: case 0x02+X: case 0x03+X: case 0x04+X: case 0x05+X: case 0x06+X: case 0x07+X: \
-			case 0x08+X: case 0x09+X: case 0x0A+X: case 0x0B+X: case 0x0C+X: case 0x0D+X: case 0x0E + (X): case 0x0F+X:
-
-		Out out;
-		out.res = RESOURCE::OPENBUS;
-		bool HIGHHALF = true;
-		int addrBlock=addr>>13;
-		switch(BANK)
-		{
-			LAKESNES_UNREACHABLE_CASE
-			CASE10(0x00) CASE10(0x10) CASE10(0x20) CASE10(0x30)
-				HIGHHALF = false;
-				//fallthrough
-			CASE10(0x80) CASE10(0x90) CASE10(0xA0) CASE10(0xB0)
-				switch(addrBlock)
-				{
-					LAKESNES_UNREACHABLE_CASE
-					case 0x00>>1:
-						out.res = RESOURCE::WRAM;
-						out.offset = addr&0x1FFF;
-						break;
-					case 0x02>>1:
-						out.res = RESOURCE::IOBLOCK;
-						out.offset = addr;
-						break;
-					case 0x04>>1:
-						out.offset = addr;
-						if(addr < 0x4000 || addr >= 0x4200)
-							out.res = RESOURCE::IOBLOCK_SLOWJOYPAD;
-						else 
-							out.res = RESOURCE::IOBLOCK;
-						break;
-					case 0x06>>1:
-						out.res = RESOURCE::ROM;
-						out.offset = (addr&0x7FFF)+((bank&0x7F)*32768);
-						break;
-					case 0x08>>1:
-					case 0x0A>>1:
-					case 0x0C>>1:
-					case 0x0E>>1:
-						out.res = RESOURCE::ROM;
-						out.offset = (addr&0x7FFF)+((bank&0x7F)*32768);
-						break;
-				}
-			break;
-
-			CASE10(0x40)
-			CASE10(0x50)
-			CASE10(0x60)
-				HIGHHALF = false;
-				switch(addrBlock)
-				{
-					LAKESNES_UNREACHABLE_CASE
-					case 0x00>>1: case 0x02>>1: case 0x04>>1: case 0x06>>1:
-						out.res = RESOURCE::OPENBUS;
-						break;
-					case 0x08>>1: case 0x0A>>1: case 0x0C>>1: case 0x0E>>1:
-						out.res = RESOURCE::ROM;
-						break;
-				}
-				break;
-
-			case 0x70: case 0x71: case 0x72: case 0x73: case 0x74: case 0x75: case 0x76: case 0x77:
-			case 0x78: case 0x79: case 0x7A: case 0x7B: case 0x7C: case 0x7D: // WRAM takes over here 
-				HIGHHALF = false;
-				switch(addrBlock)
-				{
-					LAKESNES_UNREACHABLE_CASE
-					case 0x00>>1: case 0x02>>1: case 0x04>>1: case 0x06>>1:
-						out.res = RESOURCE::SRAM;
-						out.offset = addr; //masking to size is done elsewhere
-						break;
-					case 0x08>>1: case 0x0A>>1: case 0x0C>>1: case 0x0E>>1:
-						out.res = RESOURCE::ROM;
-						break;
-				}
-				break;
-
-			case 0x7E:
-				HIGHHALF = false;
-				out.res = RESOURCE::WRAM;
-				out.offset = addr;
-				break;
-			case 0x7F:
-				HIGHHALF = false;
-				out.res = RESOURCE::WRAM;
-				out.offset = addr+0x10000;
-				break;
-
-			CASE10(0xC0) CASE10(0xD0) CASE10(0xE0) CASE10(0xF0)
-			switch(addrBlock)
-			{
-				LAKESNES_UNREACHABLE_CASE
-				case 0x00>>1: case 0x02>>1: case 0x04>>1: case 0x06>>1:
-				out.res = RESOURCE::OPENBUS;
-				break;
-			case 0x08>>1: case 0x0A>>1: case 0x0C>>1: case 0x0E>>1:
-				out.res = RESOURCE::ROM;
-				break;
-			}
-			break;
-		}
-
-		//brief summary: everything's 8, but:
-		//* 0x80+ rom with fastrom is 6
-		//* open bus follows rom
-		//* normal registers are 6
-		//* slow joypad registers are double access cycles = 12
-		//in other words: everything's 6, except slow joypad is 6, and a slow rom is 8
-		//hopefully the compiler can optimize this by knowing what resource we just chose
-
-		int kCycles;
-		switch(out.res)
-		{
-			LAKESNES_UNREACHABLE_CASE
-			case RESOURCE::OPENBUS:
-			case RESOURCE::ROM:
-				kCycles = snes->fastMem ? 6 : 8;
-				break;
-			case RESOURCE::SRAM:
-				kCycles = 8;
-				break;
-			case RESOURCE::WRAM:
-				kCycles = 8;
-				break;
-			case RESOURCE::IOBLOCK:
-				kCycles = 6;
-				break;
-			case RESOURCE::IOBLOCK_SLOWJOYPAD:
-				kCycles = 12;
-				break;
-		}
-
-
-		switch(OP)
-		{
-			LAKESNES_UNREACHABLE_CASE
-
-			case MemOp::Read:
-			case MemOp::Fetch: {
-
-				uint8_t rv = 0;
-
-				kCycles -= 4;
-				snes->mydma.dma_handleDma(kCycles);
-				snes->snes_runCycles(kCycles);
-
-				switch(out.res)
-				{
-					LAKESNES_UNREACHABLE_CASE
-					case RESOURCE::OPENBUS:
-						rv = snes->openBus;
-						break;
-					case RESOURCE::ROM:
-						rv = snes->mycart.config.rom[out.offset & (snes->mycart.config.romSize - 1)];
-						break;
-					case RESOURCE::SRAM:
-						rv = snes->mycart.ram[out.offset & (snes->mycart.config.ramSize-1)];
-						break;
-					case RESOURCE::WRAM:
-						rv = snes->ram[out.offset];
-						break;
-					case RESOURCE::IOBLOCK:
-					case RESOURCE::IOBLOCK_SLOWJOYPAD:
-						//thunk to old code for now (could be faster)
-						rv = snes->snes_read(out.offset);
-						break;
-				}
-
-				snes->mydma.dma_handleDma(4);
-				snes->snes_runCycles(4);
-				return (uint8_t)rv;
-			}
-
-			case MemOp::Write:
-				
-				snes->openBus = value;
-				snes->mydma.dma_handleDma(kCycles);
-				snes->snes_runCycles(kCycles);
-
-				switch(out.res)
-				{
-					LAKESNES_UNREACHABLE_CASE
-					case RESOURCE::OPENBUS:
-						break;
-					case RESOURCE::ROM:
-						break;
-					case RESOURCE::SRAM:
-						snes->mycart.ram[out.offset & (snes->mycart.config.ramSize-1)] = (uint8_t)value;
-						break;
-					case RESOURCE::WRAM:
-						snes->ram[out.offset] = (uint8_t)value;
-						break;
-					case RESOURCE::IOBLOCK:
-					case RESOURCE::IOBLOCK_SLOWJOYPAD:
-						//thunk to old code for now (could be faster)
-						snes->snes_write(out.offset, (uint8_t)value);
-						break;
-				}
-
-				return 0;
-		}
-		
-	}
-	#endif
 
 	void cpu_access_new_run_cyles(LakeSnes::Snes* snes, int CYC)
 	{
@@ -328,7 +97,7 @@ namespace
 		return std::make_pair(RESOURCE::IOBLOCK_SLOW,12);
 	}
 
-	template<int BYTES, MemOp OP> int cpu_access_new(LakeSnes::Snes* snes, LakeSnes::Addr24 addr, int value, bool reversed, bool intCheck)
+	template<int BYTES, MemOp OP> int cpu_access_new(LakeSnes::Snes* snes, const LakeSnes::Addr24 addr, int value = 0, bool reversed = false, bool intCheck = false)
 	{
 		//TODO: move to snes module
 		//TODO: handle open bus saving
@@ -349,17 +118,20 @@ namespace
 			//It seems bsnes does it but ares does not?
 			if(reversed)
 			{
-				rv = cpu_access_new<1,OP>(snes,addr,value>>8,false,false);
+				//todo addrh with >> 8 first!
+				auto hiaddr = addr;
+				hiaddr._addr++;
+				rv = cpu_access_new<1,OP>(snes,hiaddr,value>>8,false,false);
 				if(intCheck) snes->mycpu.cpu_checkInt();
-				addr._addr += 1;
 				rv |= cpu_access_new<1,OP>(snes,addr,value,false,false)<<8;
 			}
 			else
 			{
 				rv = cpu_access_new<1,OP>(snes,addr,value,false,false);
 				if(intCheck) snes->mycpu.cpu_checkInt();
-				addr._addr += 1;
-				rv |= cpu_access_new<1,OP>(snes,addr,value>>8,false,false)<<8;
+				auto hiaddr = addr;
+				hiaddr._addr += 1;
+				rv |= cpu_access_new<1,OP>(snes,hiaddr,value>>8,false,false)<<8;
 			}
 			return rv;
 		}
@@ -388,6 +160,8 @@ namespace
 
 		switch(info.resource)
 		{
+			LAKESNES_UNREACHABLE_DEFAULT
+
 			case RESOURCE::WRAM:
 				at = ((addr.bank() & 1) << 16) | addr.addr();
 				if(READTYPE)
@@ -557,10 +331,7 @@ namespace LakeSnes
 
 	void Cpu::cpu_writeWord(Addr24 addr, uint16_t value, bool reversed, bool intCheck)
 	{
-		auto addrl = (addr.bank()<<16)+addr.addr();
-		auto addrh = ((addr.bank()<<16)+addr.addr()+1)&0xFFFFFF;
-		cpu_writeWord(addrl,addrh,value,reversed,intCheck);
-		//cpu_access_new<2,MemOp::Write>(config.snes,addr.bank,addr.addr,value,reversed,intCheck);
+		cpu_access_new<2,MemOp::Write>(config.snes,addr,value,reversed,intCheck);
 	}
 
 	void Cpu::cpu_write(uint32_t adr, uint8_t val) {
@@ -1615,7 +1386,7 @@ namespace LakeSnes
 				uint8_t dest = cpu_readOpcode();
 				uint8_t src = cpu_readOpcode();
 				db = dest;
-				cpu_write((dest << 16) | y, cpu_read((src << 16) | x));
+				cpu_write(MakeAddr24(dest, y), cpu_read(MakeAddr24(src, x)));
 				a--;
 				x--;
 				y--;
@@ -1720,7 +1491,7 @@ namespace LakeSnes
 				uint8_t dest = cpu_readOpcode();
 				uint8_t src = cpu_readOpcode();
 				db = dest;
-				cpu_write((dest << 16) | y, cpu_read((src << 16) | x));
+				cpu_write(MakeAddr24(dest, y), cpu_read(MakeAddr24(src, x)));
 				a--;
 				x++;
 				y++;
