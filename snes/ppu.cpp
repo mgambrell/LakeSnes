@@ -291,8 +291,9 @@ namespace LakeSnes
 	}
 
 	void Ppu::ppu_runLine(int line) {
-		#ifdef EXPERIMENTAL_PPU
+		#ifdef LAKESNES_EXPERIMENTAL_PPU
 		ExperimentalRunLine(this,line);
+		return;
 		#else
 		// called for lines 1-224/239
 		// evaluate sprites
