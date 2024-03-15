@@ -233,10 +233,10 @@ namespace LakeSnes
 	}
 
 	void Ppu::ppu_runLine(int line) {
-		//#ifdef LAKESNES_EXPERIMENTAL_PPU
-		//ExperimentalRunLine(this,line);
-		//return;
-		//#else
+		#ifdef LAKESNES_EXPERIMENTAL_PPU
+		ExperimentalRunLine(this,line);
+		return;
+		#else
 		// called for lines 1-224/239
 		// evaluate sprites
 		memset(objPixelBuffer, 0, sizeof(objPixelBuffer));
@@ -250,7 +250,7 @@ namespace LakeSnes
 			ppu_handlePixel(x + 2, line);
 			ppu_handlePixel(x + 3, line);
 		}
-		//#endif
+		#endif
 	}
 
 	void Ppu::ppu_handlePixel(int x, int y) {
