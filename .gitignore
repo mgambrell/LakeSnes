@@ -12,6 +12,8 @@ dump.bin
 *.so
 *.dylib
 *.res
+msvc/LakeSnes.vcxproj.user
 *.dSYM
 *.suo
 /msvc/x64
+/msvc/SDL2.dll

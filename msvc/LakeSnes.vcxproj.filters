@@ -1,0 +1,96 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="..\main.cpp" />
+    <ClCompile Include="..\tracing.cpp" />
+    <ClCompile Include="..\zip\zip.c">
+      <Filter>zip</Filter>
+    </ClCompile>
+    <ClCompile Include="..\snes\cx4.cpp">
+      <Filter>snes</Filter>
+    </ClCompile>
+    <ClCompile Include="..\snes\dma.cpp">
+      <Filter>snes</Filter>
+    </ClCompile>
+    <ClCompile Include="..\snes\dsp.cpp">
+      <Filter>snes</Filter>
+    </ClCompile>
+    <ClCompile Include="..\snes\input.cpp">
+      <Filter>snes</Filter>
+    </ClCompile>
+    <ClCompile Include="..\snes\ppu.cpp">
+      <Filter>snes</Filter>
+    </ClCompile>
+    <ClCompile Include="..\snes\snes.cpp">
+      <Filter>snes</Filter>
+    </ClCompile>
+    <ClCompile Include="..\snes\snes_other.cpp">
+      <Filter>snes</Filter>
+    </ClCompile>
+    <ClCompile Include="..\snes\spc.cpp">
+      <Filter>snes</Filter>
+    </ClCompile>
+    <ClCompile Include="..\snes\apu.cpp">
+      <Filter>snes</Filter>
+    </ClCompile>
+    <ClCompile Include="..\snes\cart.cpp">
+      <Filter>snes</Filter>
+    </ClCompile>
+    <ClCompile Include="..\snes\cpu.cpp">
+      <Filter>snes</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="snes">
+      <UniqueIdentifier>{d6d49e61-0250-4305-a3bf-bef39643fd19}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="zip">
+      <UniqueIdentifier>{c1c6cc90-056e-4a19-bd4d-b5da4dc57a10}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\tracing.h" />
+    <ClInclude Include="..\zip\zip.h">
+      <Filter>zip</Filter>
+    </ClInclude>
+    <ClInclude Include="..\zip\miniz.h">
+      <Filter>zip</Filter>
+    </ClInclude>
+    <ClInclude Include="..\snes\cpu.h">
+      <Filter>snes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\snes\cx4.h">
+      <Filter>snes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\snes\dma.h">
+      <Filter>snes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\snes\dsp.h">
+      <Filter>snes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\snes\input.h">
+      <Filter>snes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\snes\LakeSnesApi.h">
+      <Filter>snes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\snes\ppu.h">
+      <Filter>snes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\snes\snes.h">
+      <Filter>snes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\snes\snes_forward.hpp">
+      <Filter>snes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\snes\spc.h">
+      <Filter>snes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\snes\apu.h">
+      <Filter>snes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\snes\cart.h">
+      <Filter>snes</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
