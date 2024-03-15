@@ -20,7 +20,6 @@
 #include "cx4.h"
 #include "snes.h"
 #include "cpu.h"
-#include "statehandler.h"
 
 #include <stdio.h>
 #include <stdint.h>
@@ -186,11 +185,6 @@ namespace LakeSnes
 		cx4.unkcfg = 1;
 		cx4.waitstate = 0x33;
 		cx4.bus_mode = B_IDLE;
-	}
-
-	void cx4_handleState(StateHandler* sh)
-	{
-		sh_handleByteArray(sh, (uint8_t*)&cx4, cx4.struct_data_length);
 	}
 
 	#define CACHE_PAGE 0x100

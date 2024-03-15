@@ -8,7 +8,6 @@
 namespace LakeSnes
 {
 	class Snes;
-	struct StateHandler;
 
 	struct Timer {
 		uint8_t cycles;
@@ -25,7 +24,6 @@ namespace LakeSnes
 		void apu_init(Snes* snes);
 		void apu_free();
 		void apu_reset();
-		void apu_handleState(StateHandler* sh);
 		void apu_runCycles();
 		uint8_t apu_spcRead(uint16_t adr);
 		void apu_spcWrite(uint16_t adr, uint8_t val);

@@ -1,6 +1,5 @@
 #include "cart.h"
 #include "snes.h"
-#include "statehandler.h"
 #include "cx4.h"
 
 #include <stdio.h>
@@ -33,30 +32,6 @@ namespace LakeSnes
 				cx4_init(config.snes);
 				cx4_reset();
 				break;
-		}
-	}
-
-	bool Cart::cart_handleTypeState(StateHandler* sh) {
-		// when loading, return if values match
-		if(sh->saving) {
-			sh_handleBytes(sh, &config.type, NULL);
-			sh_handleInts(sh, &config.romSize, &config.ramSize, NULL);
-			return true;
-		} else {
-			uint8_t type = 0;
-			uint32_t romSize = 0;
-			uint32_t ramSize = 0;
-			sh_handleBytes(sh, &type, NULL);
-			sh_handleInts(sh, &romSize, &ramSize, NULL);
-			return !(type != type || romSize != romSize || ramSize != ramSize);
-		}
-	}
-
-	void Cart::cart_handleState(StateHandler* sh) {
-		if(ram != NULL) sh_handleByteArray(sh, ram, config.ramSize);
-
-		switch(config.type) {
-			case 4: cx4_handleState(sh); break;
 		}
 	}
 

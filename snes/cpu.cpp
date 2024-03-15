@@ -7,7 +7,6 @@
 #include "conf.h"
 
 #include "cpu.h"
-#include "statehandler.h"
 #include "snes.h"
 #include "Add24.h"
 
@@ -307,15 +306,6 @@ namespace LakeSnes
 		intWanted = false;
 		intDelay = false;
 		resetWanted = true;
-	}
-
-	void Cpu::cpu_handleState(StateHandler* sh) {
-		sh_handleBools(sh,
-			&c, &z, &v, &n, &i, &d, &_xf, &_mf, &e,
-			&irqWanted, &nmiWanted, &intWanted, &intDelay, &resetWanted, NULL
-		);
-		sh_handleBytes(sh, &k, &db, NULL);
-		sh_handleWords(sh, &a, &x, &y, &sp, &pc, &dp, NULL);
 	}
 
 	void Cpu::cpu_runOpcode() {

@@ -1,7 +1,6 @@
 #include "dsp.h"
 #include "apu.h"
 #include "snes.h"
-#include "statehandler.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -142,51 +141,6 @@ namespace LakeSnes
 
 	void Dsp::dsp_newFrame() {
 		lastFrameBoundary = sampleOffset;
-	}
-
-	void Dsp::dsp_handleState(StateHandler* sh) {
-		sh_handleBools(sh, &evenCycle, &mute, &reset, &echoWrites, NULL);
-		sh_handleBytes(sh, &noiseRate, &firBufferIndex, NULL);
-		sh_handleBytesS(sh,
-			&masterVolumeL, &masterVolumeR, &echoVolumeL, &echoVolumeR, &feedbackVolume,
-			&firValues[0], &firValues[1], &firValues[2], &firValues[3], &firValues[4],
-			&firValues[5], &firValues[6], &firValues[7], NULL
-		);
-		sh_handleWords(sh,
-			&counter, &dirPage, &echoBufferAdr, &echoDelay, &echoLength, &echoBufferIndex, NULL
-		);
-		sh_handleWordsS(sh,
-			&sampleOutL, &sampleOutR, &echoOutL, &echoOutR, &noiseSample,
-			&firBufferL[0], &firBufferL[1], &firBufferL[2], &firBufferL[3], &firBufferL[4],
-			&firBufferL[5], &firBufferL[6], &firBufferL[7], &firBufferR[0], &firBufferR[1],
-			&firBufferR[2], &firBufferR[3], &firBufferR[4], &firBufferR[5], &firBufferR[6],
-			&firBufferR[7], NULL
-		);
-		for(int i = 0; i < 8; i++) {
-			sh_handleBools(sh,
-				&channel[i].pitchModulation, &channel[i].useNoise, &channel[i].useGain, &channel[i].directGain,
-				&channel[i].keyOn, &channel[i].keyOff, &channel[i].echoEnable, NULL
-			);
-			sh_handleBytes(sh,
-				&channel[i].bufferOffset, &channel[i].srcn, &channel[i].blockOffset, &channel[i].brrHeader,
-				&channel[i].startDelay, &channel[i].adsrRates[0], &channel[i].adsrRates[1],
-				&channel[i].adsrRates[2], &channel[i].adsrRates[3], &channel[i].adsrState,
-				&channel[i].sustainLevel, &channel[i].gainSustainLevel, &channel[i].gainMode, NULL
-			);
-			sh_handleBytesS(sh, &channel[i].volumeL, &channel[i].volumeR, NULL);
-			sh_handleWords(sh,
-				&channel[i].pitch, &channel[i].pitchCounter, &channel[i].decodeOffset, &channel[i].gainValue,
-				&channel[i].preclampGain, &channel[i].gain, NULL
-			);
-			sh_handleWordsS(sh,
-				&channel[i].decodeBuffer[0], &channel[i].decodeBuffer[1], &channel[i].decodeBuffer[2],
-				&channel[i].decodeBuffer[3], &channel[i].decodeBuffer[4], &channel[i].decodeBuffer[5],
-				&channel[i].decodeBuffer[6], &channel[i].decodeBuffer[7], &channel[i].decodeBuffer[8],
-				&channel[i].decodeBuffer[9], &channel[i].decodeBuffer[10], &channel[i].decodeBuffer[11],
-				&channel[i].sampleOut, NULL
-			);
-		}
-		sh_handleByteArray(sh, ram, 0x80);
 	}
 
 	void Dsp::dsp_cycle() {

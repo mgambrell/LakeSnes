@@ -1,7 +1,6 @@
 #include "dma.h"
 #include "snes.h"
 #include "cpu.h"
-#include "statehandler.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -59,23 +58,6 @@ namespace LakeSnes
 		dmaState = 0;
 		hdmaInitRequested = false;
 		hdmaRunRequested = false;
-	}
-
-	void Dma::dma_handleState(StateHandler* sh) {
-		sh_handleBools(sh, &hdmaInitRequested, &hdmaRunRequested, NULL);
-		sh_handleBytes(sh, &dmaState, NULL);
-		for(int i = 0; i < 8; i++) {
-			sh_handleBools(sh,
-				&channel[i].dmaActive, &channel[i].hdmaActive, &channel[i].fixed, &channel[i].decrement,
-				&channel[i].indirect, &channel[i].fromB, &channel[i].unusedBit, &channel[i].doTransfer,
-				&channel[i].terminated, NULL
-			);
-			sh_handleBytes(sh,
-				&channel[i].bAdr, &channel[i].aBank, &channel[i].indBank, &channel[i].repCount,
-				&channel[i].unusedByte, &channel[i].mode, NULL
-			);
-			sh_handleWords(sh, &channel[i].aAdr, &channel[i].size, &channel[i].tableAdr, NULL);
-		}
 	}
 
 	uint8_t Dma::dma_read(uint16_t adr) {

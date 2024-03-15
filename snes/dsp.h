@@ -6,7 +6,6 @@ namespace LakeSnes
 {
 	class Apu;
 	class Snes;
-	struct StateHandler;
 
 	struct DspChannel
 	{
@@ -50,7 +49,6 @@ namespace LakeSnes
 		void dsp_init(Apu* apu);
 		void dsp_free();
 		void dsp_reset();
-		void dsp_handleState(StateHandler* sh);
 		void dsp_cycle();
 		uint8_t dsp_read(uint8_t adr);
 		void dsp_write(uint8_t adr, uint8_t val);

@@ -1,6 +1,5 @@
 #include "input.h"
 #include "snes.h"
-#include "statehandler.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,13 +24,6 @@ namespace LakeSnes
 	void Input::input_reset() {
 		latchLine = false;
 		latchedState = 0;
-	}
-
-	void Input::input_handleState(StateHandler* sh) {
-		// TODO: handle types (switch type on state load?)
-		sh_handleBytes(sh, &type, NULL);
-		sh_handleBools(sh, &latchLine, NULL);
-		sh_handleWords(sh, &currentState, &latchedState, NULL);
 	}
 
 	void Input::input_latch(bool value) {

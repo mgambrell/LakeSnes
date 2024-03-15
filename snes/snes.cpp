@@ -9,7 +9,6 @@
 #include "cart.h"
 #include "cx4.h"
 #include "input.h"
-#include "statehandler.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -73,30 +72,6 @@ namespace LakeSnes
 		divideA = 0xffff;
 		divideResult = 0x101;
 		nextHoriEvent = 16;
-	}
-
-	void Snes::snes_handleState(StateHandler* sh) {
-		sh_handleBools(sh,
-			&palTiming, &hIrqEnabled, &vIrqEnabled, &nmiEnabled, &inNmi, &irqCondition,
-			&inIrq, &inVblank, &autoJoyRead, &ppuLatch, NULL
-		);
-		sh_handleBytes(sh, &multiplyA, NULL);
-		sh_handleWords(sh,
-			&hPos, &vPos, &hTimer, &vTimer,
-			&portAutoRead[0], &portAutoRead[1], &portAutoRead[2], &portAutoRead[3],
-			&autoJoyTimer, &multiplyResult, &divideA, &divideResult, NULL
-		);
-		sh_handleInts(sh, &ramAdr, &frames, &nextHoriEvent, NULL);
-		sh_handleLongLongs(sh, &cycles, &syncCycle, NULL);
-		sh_handleByteArray(sh, ram, 0x20000);
-		// components
-		mycpu.cpu_handleState(sh);
-		mydma.dma_handleState(sh);
-		myppu.ppu_handleState(sh);
-		myapu.apu_handleState(sh);
-		myinput[0].input_handleState(sh);
-		myinput[1].input_handleState(sh);
-		mycart.cart_handleState(sh);
 	}
 
 	void Snes::snes_runFrame() {

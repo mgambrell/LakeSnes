@@ -1,6 +1,5 @@
 #include "spc.h"
 #include "apu.h"
-#include "statehandler.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,16 +35,6 @@ namespace LakeSnes
 		stopped = false;
 		resetWanted = true;
 		step = 0;
-	}
-
-	void Spc::spc_handleState(StateHandler* sh) {
-		sh_handleBools(sh,
-			&c, &z, &v, &n, &i, &h, &p, &b, &stopped,
-			&resetWanted, NULL
-		);
-		sh_handleBytes(sh, &a, &x, &y, &sp, &opcode, &dat, &param, NULL);
-		sh_handleWords(sh, &pc, &adr, &adr1, &dat16, NULL);
-		sh_handleInts(sh, &step, &bstep, NULL);
 	}
 
 	// Actraiser 2, Rendering Ranger B2, and a handful of other games have

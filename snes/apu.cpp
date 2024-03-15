@@ -2,7 +2,6 @@
 #include "snes.h"
 #include "spc.h"
 #include "dsp.h"
-#include "statehandler.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -75,23 +74,6 @@ namespace LakeSnes
 			timer[i].counter = 0;
 			timer[i].enabled = false;
 		}
-	}
-
-	void Apu::apu_handleState( StateHandler* sh) {
-		sh_handleBools(sh, &romReadable, NULL);
-		sh_handleBytes(sh,
-			&dspAdr, &inPorts[0], &inPorts[1], &inPorts[2], &inPorts[3], &inPorts[4],
-			&inPorts[5], &outPorts[0], &outPorts[1], &outPorts[2], &outPorts[3], NULL
-		);
-		sh_handleLongLongs(sh, &cycles, NULL);
-		for(int i = 0; i < 3; i++) {
-			sh_handleBools(sh, &timer[i].enabled, NULL);
-			sh_handleBytes(sh, &timer[i].cycles, &timer[i].divider, &timer[i].target, &timer[i].counter, NULL);
-		}
-		sh_handleByteArray(sh, ram, 0x10000);
-		// components
-		myspc.spc_handleState(sh);
-		mydsp.dsp_handleState( sh);
 	}
 
 	void Apu::apu_runCycles() {

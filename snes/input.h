@@ -4,8 +4,6 @@
 
 namespace LakeSnes
 {
-	struct StateHandler;
-
 	class Input
 	{
 	public:
@@ -13,7 +11,6 @@ namespace LakeSnes
 		void input_init(int pidx);
 		void input_free();
 		void input_reset();
-		void input_handleState(StateHandler* sh);
 		void input_latch(bool value);
 		uint8_t input_read();
 

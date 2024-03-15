@@ -5,7 +5,6 @@
 namespace LakeSnes
 {
 	class Snes;
-	struct StateHandler;
 
 	struct DmaChannel
 	{
@@ -35,7 +34,6 @@ namespace LakeSnes
 		void dma_init(Snes* snes);
 		void dma_free();
 		void dma_reset();
-		void dma_handleState(StateHandler* sh);
 		uint8_t dma_read(uint16_t adr); // 43x0-43xf
 		void dma_write(uint16_t adr, uint8_t val); // 43x0-43xf
 		void dma_handleDma(int cpuCycles);

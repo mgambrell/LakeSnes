@@ -4,7 +4,6 @@
 #include "ppu.h"
 #include "dsp.h"
 #include "input.h"
-#include "statehandler.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -167,37 +166,6 @@ namespace LakeSnes
 		return mycart.cart_handleBattery(false, data, &size);
 	}
 
-	int Snes::snes_saveState(uint8_t* data) {
-		StateHandler* sh = sh_init(true, NULL, 0);
-		uint32_t id = 0x4653534c; // 'LSSF' LakeSnes State File
-		uint32_t version = stateVersion;
-		sh_handleInts(sh, &id, &version, &version, NULL); // second version to be overridden by length
-		mycart.cart_handleTypeState(sh);
-		// save data
-		snes_handleState(sh);
-		// store
-		sh_placeInt(sh, 8, sh->offset);
-		if(data != NULL) memcpy(data, sh->data, sh->offset);
-		int size = sh->offset;
-		sh_free(sh);
-		return size;
-	}
-
-	bool Snes::snes_loadState(uint8_t* data, int size) {
-		StateHandler* sh = sh_init(false, data, size);
-		uint32_t id = 0, version = 0, length = 0;
-		sh_handleInts(sh, &id, &version, &length, NULL);
-		bool cartMatch = mycart.cart_handleTypeState(sh);
-		if(id != 0x4653534c || version != stateVersion || length != size || !cartMatch) {
-			sh_free(sh);
-			return false;
-		}
-		// load data
-		snes_handleState(sh);
-		// finish
-		sh_free(sh);
-		return true;
-	}
 
 	static void readHeader(const uint8_t* data, int length, int location, CartHeader* header) {
 		// read name, TODO: non-ASCII names?

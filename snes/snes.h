@@ -13,8 +13,6 @@
 
 namespace LakeSnes
 {
-	struct StateHandler;
-
 	struct SnesConfig
 	{
 		//Donate this memory to the PPU so it can draw the framebuffer in there
@@ -27,7 +25,6 @@ namespace LakeSnes
 		Snes* snes_init(const SnesConfig *config);
 		void snes_free();
 		void snes_reset(bool hard);
-		void snes_handleState(StateHandler* sh);
 		void snes_runFrame();
 		// used by dma, cpu
 		void snes_runCycles(int cycles);

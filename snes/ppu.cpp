@@ -1,6 +1,5 @@
 #include "ppu.h"
 #include "snes.h"
-#include "statehandler.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -209,63 +208,6 @@ namespace LakeSnes
 		ppu2openBus = 0;
 	}
 
-	void Ppu::ppu_handleState(StateHandler* sh)
-	{
-		sh_handleBools(sh,
-			&vramIncrementOnHigh, &cgramSecondWrite, &oamInHigh, &oamInHighWritten, &oamSecondWrite,
-			&objPriority, &timeOver, &rangeOver, &objInterlace, &m7largeField, &m7charFill,
-			&m7xFlip, &m7yFlip, &m7extBg, &addSubscreen, &subtractColor, &halfColor,
-			&mathEnabled[0], &mathEnabled[1], &mathEnabled[2], &mathEnabled[3], &mathEnabled[4],
-			&mathEnabled[5], &forcedBlank, &bg3priority, &evenFrame, &pseudoHires, &overscan,
-			&frameOverscan, &interlace, &frameInterlace, &directColor, &hCountSecond, &vCountSecond,
-			&countersLatched, NULL
-		);
-		sh_handleBytes(sh,
-			&vramRemapMode, &cgramPointer, &cgramBuffer, &oamAdr, &oamAdrWritten, &oamBuffer,
-			&objSize, &scrollPrev, &scrollPrev2, &mosaicSize, &mosaicStartLine, &m7prev,
-			&window1left, &window1right, &window2left, &window2right, &clipMode, &preventMathMode,
-			&fixedColorR, &fixedColorG, &fixedColorB, &brightness, &mode,
-			&ppu1openBus, &ppu2openBus, NULL
-		);
-		sh_handleWords(sh,
-			&vramPointer, &vramIncrement, &vramReadBuffer, &objTileAdr1, &objTileAdr2,
-			&hCount, &vCount, NULL
-		);
-		sh_handleWordsS(sh,
-			&m7matrix[0], &m7matrix[1], &m7matrix[2], &m7matrix[3], &m7matrix[4], &m7matrix[5],
-			&m7matrix[6], &m7matrix[7], NULL
-		);
-		sh_handleIntsS(sh, &m7startX, &m7startY, NULL);
-		for(int i = 0; i < 4; i++) {
-			sh_handleBools(sh,
-				&bgLayer[i].tilemapWider, &bgLayer[i].tilemapHigher, &bgLayer[i].bigTiles,
-				&bgLayer[i].mosaicEnabled, NULL
-			);
-			sh_handleWords(sh,
-				&bgLayer[i].hScroll, &bgLayer[i].vScroll, &bgLayer[i].tilemapAdr, &bgLayer[i].tileAdr, NULL
-			);
-		}
-		for(int i = 0; i < 5; i++) {
-			sh_handleBools(sh,
-				&layer[i].mainScreenEnabled, &layer[i].subScreenEnabled, &layer[i].mainScreenWindowed,
-				&layer[i].subScreenWindowed, NULL
-			);
-		}
-		for(int i = 0; i < 6; i++) {
-			sh_handleBools(sh,
-				&windowLayer[i].window1enabled, &windowLayer[i].window1inversed, &windowLayer[i].window2enabled,
-				&windowLayer[i].window2inversed, NULL
-			);
-			sh_handleBytes(sh, &windowLayer[i].maskLogic, NULL);
-		}
-		sh_handleWordArray(sh, vram, 0x8000);
-		sh_handleWordArray(sh, cgram, 0x100);
-		sh_handleWordArray(sh, oam, 0x100);
-		sh_handleByteArray(sh, highOam, 0x20);
-		sh_handleByteArray(sh, objPixelBuffer, 256);
-		sh_handleByteArray(sh, objPriorityBuffer, 256);
-	}
-
 	bool Ppu::ppu_checkOverscan() {
 		// called at (0,225)
 		frameOverscan = overscan; // set if we have a overscan-frame
@@ -291,10 +233,10 @@ namespace LakeSnes
 	}
 
 	void Ppu::ppu_runLine(int line) {
-		#ifdef LAKESNES_EXPERIMENTAL_PPU
-		ExperimentalRunLine(this,line);
-		return;
-		#else
+		//#ifdef LAKESNES_EXPERIMENTAL_PPU
+		//ExperimentalRunLine(this,line);
+		//return;
+		//#else
 		// called for lines 1-224/239
 		// evaluate sprites
 		memset(objPixelBuffer, 0, sizeof(objPixelBuffer));
@@ -308,7 +250,7 @@ namespace LakeSnes
 			ppu_handlePixel(x + 2, line);
 			ppu_handlePixel(x + 3, line);
 		}
-		#endif
+		//#endif
 	}
 
 	void Ppu::ppu_handlePixel(int x, int y) {

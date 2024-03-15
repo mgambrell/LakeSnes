@@ -6,7 +6,6 @@ namespace LakeSnes
 {
 	class Apu;
 	class Snes;
-	struct StateHandler;
 
 	class Spc
 	{
@@ -48,7 +47,6 @@ namespace LakeSnes
 		void spc_init(Apu* apu);
 		void spc_free();
 		void spc_reset(bool hard);
-		void spc_handleState(StateHandler* sh);
 		void spc_runOpcode();
 
 	private:

@@ -5,7 +5,6 @@
 namespace LakeSnes
 {
 	class Snes;
-	struct StateHandler;
 
 	struct BgLayer {
 		uint16_t hScroll;
@@ -41,7 +40,6 @@ namespace LakeSnes
 		void ppu_init(Snes* snes);
 		void ppu_free();
 		void ppu_reset();
-		void ppu_handleState(StateHandler* sh);
 		bool ppu_checkOverscan();
 		void ppu_handleVblank();
 		void ppu_handleFrameStart();

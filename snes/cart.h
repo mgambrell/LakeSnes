@@ -7,7 +7,6 @@
 namespace LakeSnes
 {
 	class Snes;
-	struct StateHandler;
 
 	class Cart
 	{
@@ -18,8 +17,6 @@ namespace LakeSnes
 		void cart_init(Snes* snes);
 		void cart_free();
 		void cart_reset(); // will reset special chips etc, general reading is set up in load
-		bool cart_handleTypeState(StateHandler* sh);
-		void cart_handleState(StateHandler* sh);
 		void cart_load(int type, uint8_t* rom, int romSize, int ramSize); // loads rom, sets up ram buffer
 		bool cart_handleBattery(bool save, uint8_t* data, int* size); // saves/loads ram
 		uint8_t cart_read(uint8_t bank, uint16_t adr);
