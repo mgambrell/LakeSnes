@@ -1,21 +1,26 @@
 # LakeSnes
-A SNES emulator, in C
+A SNES emulator, in C++
+
+## About xor_mgambrell_0's awful fork
+
+I am renovating this to be more useful for my purposes. I expect it to still be useful for everyone else's purposes too.. when the renovations are complete.
+
+In the meantime, the save states don't work, and currently it is assuming the game is lorom. These matters will be fixed soon.
+
+I've tried to do some optimizations. I'm not really great at optimization... many of them are questionable. It automatically ran faster when I converted it to c++, so that's summarily justified. Furthermore this allows us to use some templates. I templateized the CPU instructions over the two wordsize flags, which substantially reduces the hot code size, but two checks still need to be done to take the right branch. I think we could get some gains by more carefully organizing the data.
+
+For something more productive, I'm working on an experimental PPU renderer which works by tracing all the data needed for a scanline as quickly as possible. From there, another thread can pick up on it and run in parallel. Or even on a GPU. I'm certain the concept works and is an effective optimization; it's just a lot of work to reconstruct the renderer. This isn't committed right now. 
+
+The savestates will be done by making the main chipset data structures blittable POD. That way, it's impossible to forget to save something and impossible to screw up loading it. On the other hand, we lose the ability to easily accommodate minor version changes. Big deal.
+
 
 ## About
 
-This is a SNES emulator, written in C, mostly as a followup on my [earlier Javascript version](https://github.com/angelo-wf/SnesJs). The main drive behind rewriting it in C was C's speed. The JS version could barely run at 20 FPS on my system, whereas this C version runs at full speed.
+This is a SNES emulator, written in C++, mostly as a followup on my [earlier Javascript version](https://github.com/angelo-wf/SnesJs). The main drive behind rewriting it in C was C's speed. The JS version could barely run at 20 FPS on my system, whereas this C version runs at full speed.
 
 The intent is for the actual emulation itself to be split off into a library, which can then be used in other projects. (Maybe it could be compiled for the web with Emscripten as well, to replace the core from that JS emulator). This is not done yet, and as of now a full emulator with basic frontend (using [SDL2](https://www.libsdl.org)) is build.
 
 Performance, although much better than my JS version, is still quite bad though, especially when compared to emulators like BSNES or SNES9X (it used around 80% of one core whereas SNES9X only used around 15%, on my old hardware).
-
-## Nightly releases
-
-Nightly builds can be downloaded [from the releases here](https://github.com/angelo-wf/LakeSnes/releases/tag/nightly). The source-downloads there do not seem to be updated by the Github-action used to handle making releases, so are out of date.
-
-- The macOS build is an app-bundle (includes SDL2) but not signed and notarized, and does not have proper version information. These are currently Intel-only, although manually compiling for/on Apple Silicon (arm64) works without issues. It might not run on older macOS versions.
-- The Linux build depends on SDL2 being installed already and is an x86_64 (64-bit Intel) build.
-- The Windows build includes `SDL2.dll` and is a 64-bit (Intel) build.
 
 ## Compiling
 
@@ -44,7 +49,14 @@ This is a stand-alone application (includes SDL2) and shows up in the 'open with
 
 This build depends on SDL2 being installed.
 
-### Windows
+### Windows MSVC
+
+- Dearchive SDL2 to the top level of this repository such that you have SDL2/SDL2/SDL.h and SDL2/lib/x64/SDL2.lib
+- Copy SDL2.dll to msvc/SDL2.dll
+- Open the sln in VS2019
+
+
+### Windows MSYS2
 
 NOTE: Only tested with Msys2 using clang for x86_64, but building for arm64 should work as well, and using gcc, other environments, other tools (Cygwin, Mingw, etc) or Visual Studio might also be possible. Some changes might be needed due to some of the includes and functions used.
 
@@ -123,9 +135,9 @@ Some games that I have tested seem to run without obvious issues, although some 
 
 ## License
 
-This project is licensed under the MIT license, see 'LICENSE.txt' for details.
+This overall project including the SNES core is licensed under the MIT license, see 'LICENSE.txt' for details.
 
-It uses 'kuba--/zip' which is under the Unlicense, and links against SDL2 which is under the zlib license.
+The reference frontend uses 'kuba--/zip' which is under the Unlicense, and links against SDL2 which is under the zlib license.
 
 ## Resources
 
