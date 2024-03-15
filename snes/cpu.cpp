@@ -571,7 +571,7 @@ namespace LakeSnes
 		Addr24 cpu_adrIdp() {
 			uint8_t adr = cpu_readOpcode();
 			if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
-			uint16_t pointer = (uint16_t)cpu_access_new<2,MemOp::Read>(config.snes,MakeAddr24(0,dp));
+			uint16_t pointer = (uint16_t)cpu_access_new<2,MemOp::Read>(config.snes,MakeAddr24(0,dp + adr));
 			return MakeAddr24(db,pointer);
 		}
 
@@ -579,7 +579,7 @@ namespace LakeSnes
 			uint8_t adr = cpu_readOpcode();
 			if(dp & 0xff) cpu_idle(); // dpr not 0: 1 extra cycle
 			cpu_idle();
-			uint16_t pointer = (uint16_t)cpu_access_new<2,MemOp::Read>(config.snes,MakeAddr24(0,dp + x));
+			uint16_t pointer = (uint16_t)cpu_access_new<2,MemOp::Read>(config.snes,MakeAddr24(0,dp + adr + x));
 			return MakeAddr24(db,pointer);
 		}
 
