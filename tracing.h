@@ -1,13 +1,11 @@
+#pragma once
 
-#ifndef TRACING_H
-#define TRACING_H
 
-#include <stdint.h>
-#include <stdbool.h>
+namespace LakeSnes
+{
+	class Snes;
+}
 
-#include "snes.h"
+void getProcessorStateCpu(LakeSnes::Snes* snes, char* line);
+void getProcessorStateSpc(LakeSnes::Snes* snes, char* line);
 
-void getProcessorStateCpu(Snes* snes, char* line);
-void getProcessorStateSpc(Snes* snes, char* line);
-
-#endif

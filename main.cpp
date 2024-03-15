@@ -7,12 +7,17 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
-#include "strings.h"
 
 #ifdef SDL2SUBDIR
 #include "SDL2/SDL.h"
 #else
 #include "SDL.h"
+#endif
+
+#ifdef _MSC_VER
+#include <direct.h>
+#define strcasecmp _stricmp
+#define mkdir _mkdir
 #endif
 
 #include "zip.h"
@@ -49,9 +54,9 @@ static struct {
   int16_t* audioBuffer;
   // paths
   char* prefPath;
-  char* pathSeparator;
+  const char* pathSeparator;
   // snes, timing
-  Snes* snes;
+  LakeSnes::Snes* snes;
   float wantedFrames;
   int wantedSamples;
   // loaded rom
@@ -59,6 +64,7 @@ static struct {
   char* romName;
   char* savePath;
   char* statePath;
+  uint8_t pixelBufferRGBX8888_512x239x2[512*239*2*4];
 } glb = {};
 
 static uint8_t* readFile(const char* name, int* length);
@@ -95,8 +101,8 @@ int main(int argc, char** argv) {
   }
   // get pref path, create directories
   glb.prefPath = SDL_GetPrefPath("", "LakeSnes");
-  char* savePath = malloc(strlen(glb.prefPath) + 6); // "saves" (5) + '\0'
-  char* statePath = malloc(strlen(glb.prefPath) + 7); // "states" (6) + '\0'
+  char* savePath = (char*)malloc(strlen(glb.prefPath) + 6); // "saves" (5) + '\0'
+  char* statePath = (char*)malloc(strlen(glb.prefPath) + 7); // "states" (6) + '\0'
   strcpy(savePath, glb.prefPath);
   strcat(savePath, "saves");
   strcpy(statePath, glb.prefPath);
@@ -126,7 +132,7 @@ int main(int argc, char** argv) {
     printf("Failed to open audio device: %s\n", SDL_GetError());
     return 1;
   }
-  glb.audioBuffer = malloc(glb.audioFrequency / 50 * 4); // *2 for stereo, *2 for sizeof(int16)
+  glb.audioBuffer = (int16_t*)malloc(glb.audioFrequency / 50 * 4); // *2 for stereo, *2 for sizeof(int16)
   SDL_PauseAudioDevice(glb.audioDevice, 0);
   // print version
   SDL_version version;
@@ -138,7 +144,10 @@ int main(int argc, char** argv) {
     version.major, version.minor, version.patch, compiledVersion.major, compiledVersion.minor, compiledVersion.patch
   );
   // init snes, load rom
-  glb.snes = snes_init();
+  glb.snes = new LakeSnes::Snes();
+  LakeSnes::SnesConfig cfg;
+  cfg.pixelBufferRGBX8888_512x239x2 = glb.pixelBufferRGBX8888_512x239x2;
+  glb.snes->snes_init(&cfg);
   glb.wantedFrames = 1.0 / 60.0;
   glb.wantedSamples = glb.audioFrequency / 60;
   glb.loaded = false;
@@ -167,13 +176,13 @@ int main(int argc, char** argv) {
       switch(event.type) {
         case SDL_KEYDOWN: {
           switch(event.key.keysym.sym) {
-            case SDLK_r: snes_reset(glb.snes, false); break;
-            case SDLK_e: snes_reset(glb.snes, true); break;
+            case SDLK_r: glb.snes->snes_reset(false); break;
+            case SDLK_e: glb.snes->snes_reset(true); break;
             case SDLK_o: runOne = true; break;
             case SDLK_p: paused = !paused; break;
             case SDLK_t: turbo = true; break;
             case SDLK_j: {
-              char* filePath = malloc(strlen(glb.prefPath) + 9); // "dump.bin" (8) + '\0'
+              char* filePath = (char*)malloc(strlen(glb.prefPath) + 9); // "dump.bin" (8) + '\0'
               strcpy(filePath, glb.prefPath);
               strcat(filePath, "dump.bin");
               printf("Dumping to %s...\n", filePath);
@@ -184,18 +193,18 @@ int main(int argc, char** argv) {
                 break;
               }
               fwrite(glb.snes->ram, 0x20000, 1, f);
-              fwrite(glb.snes->ppu->vram, 0x10000, 1, f);
-              fwrite(glb.snes->ppu->cgram, 0x200, 1, f);
-              fwrite(glb.snes->ppu->oam, 0x200, 1, f);
-              fwrite(glb.snes->ppu->highOam, 0x20, 1, f);
-              fwrite(glb.snes->apu->ram, 0x10000, 1, f);
+              fwrite(glb.snes->myppu.vram, 0x10000, 1, f);
+              fwrite(glb.snes->myppu.cgram, 0x200, 1, f);
+              fwrite(glb.snes->myppu.oam, 0x200, 1, f);
+              fwrite(glb.snes->myppu.highOam, 0x20, 1, f);
+              fwrite(glb.snes->myapu.ram, 0x10000, 1, f);
               fclose(f);
               free(filePath);
               break;
             }
             case SDLK_l: {
               // run one cpu cycle
-              snes_runCpuCycle(glb.snes);
+              glb.snes->snes_runCpuCycle();
               char line[80];
               getProcessorStateCpu(glb.snes, line);
               puts(line);
@@ -203,14 +212,15 @@ int main(int argc, char** argv) {
             }
             case SDLK_k: {
               // run one spc cycle
-              snes_runSpcCycle(glb.snes);
+              glb.snes->snes_runSpcCycle();
               char line[57];
               getProcessorStateSpc(glb.snes, line);
               puts(line);
               break;
             }
             case SDLK_m: {
-              // save state
+              // save state (not working for now)
+              #if 0
               int size = snes_saveState(glb.snes, NULL);
               uint8_t* stateData = malloc(size);
               snes_saveState(glb.snes, stateData);
@@ -223,10 +233,12 @@ int main(int argc, char** argv) {
                 puts("Failed to save state");
               }
               free(stateData);
+              #endif
               break;
             }
             case SDLK_n: {
-              // load state
+              // load state (not working for now)
+              #if 0
               int size = 0;
               uint8_t* stateData = readFile(glb.statePath, &size);
               if(stateData != NULL) {
@@ -239,6 +251,7 @@ int main(int argc, char** argv) {
               } else {
                 puts("Failed to load state, failed to read file");
               }
+              #endif
               break;
             }
             case SDLK_RETURN: {
@@ -287,9 +300,9 @@ int main(int argc, char** argv) {
       if(glb.loaded && (!paused || runOne)) {
         runOne = false;
         if(turbo) {
-          snes_runFrame(glb.snes);
+          glb.snes->snes_runFrame();
         }
-        snes_runFrame(glb.snes);
+        glb.snes->snes_runFrame();
         playAudio();
         renderScreen();
       }
@@ -302,7 +315,8 @@ int main(int argc, char** argv) {
   // close rom (saves battery)
   closeRom();
   // free snes
-  snes_free(glb.snes);
+  glb.snes->snes_free();
+  delete glb.snes;
   // clean sdl and free global allocs
   SDL_PauseAudioDevice(glb.audioDevice, 1);
   SDL_CloseAudioDevice(glb.audioDevice);
@@ -319,7 +333,7 @@ int main(int argc, char** argv) {
 }
 
 static void playAudio() {
-  snes_setSamples(glb.snes, glb.audioBuffer, glb.wantedSamples);
+  glb.snes->snes_setSamples(glb.audioBuffer, glb.wantedSamples);
   if(SDL_GetQueuedAudioSize(glb.audioDevice) <= glb.wantedSamples * 4 * 6) {
     // don't queue audio if buffer is still filled
     SDL_QueueAudio(glb.audioDevice, glb.audioBuffer, glb.wantedSamples * 4);
@@ -333,24 +347,24 @@ static void renderScreen() {
     printf("Failed to lock texture: %s\n", SDL_GetError());
     return;
   }
-  snes_setPixels(glb.snes, (uint8_t*) pixels);
+  glb.snes->snes_setPixels((uint8_t*) pixels);
   SDL_UnlockTexture(glb.texture);
 }
 
 static void handleInput(int keyCode, bool pressed) {
   switch(keyCode) {
-    case SDLK_z: snes_setButtonState(glb.snes, 1, 0, pressed); break;
-    case SDLK_a: snes_setButtonState(glb.snes, 1, 1, pressed); break;
-    case SDLK_RSHIFT: snes_setButtonState(glb.snes, 1, 2, pressed); break;
-    case SDLK_RETURN: snes_setButtonState(glb.snes, 1, 3, pressed); break;
-    case SDLK_UP: snes_setButtonState(glb.snes, 1, 4, pressed); break;
-    case SDLK_DOWN: snes_setButtonState(glb.snes, 1, 5, pressed); break;
-    case SDLK_LEFT: snes_setButtonState(glb.snes, 1, 6, pressed); break;
-    case SDLK_RIGHT: snes_setButtonState(glb.snes, 1, 7, pressed); break;
-    case SDLK_x: snes_setButtonState(glb.snes, 1, 8, pressed); break;
-    case SDLK_s: snes_setButtonState(glb.snes, 1, 9, pressed); break;
-    case SDLK_d: snes_setButtonState(glb.snes, 1, 10, pressed); break;
-    case SDLK_c: snes_setButtonState(glb.snes, 1, 11, pressed); break;
+    case SDLK_z: glb.snes->snes_setButtonState(1, 0, pressed); break;
+    case SDLK_a: glb.snes->snes_setButtonState(1, 1, pressed); break;
+    case SDLK_RSHIFT: glb.snes->snes_setButtonState(1, 2, pressed); break;
+    case SDLK_RETURN: glb.snes->snes_setButtonState(1, 3, pressed); break;
+    case SDLK_UP: glb.snes->snes_setButtonState(1, 4, pressed); break;
+    case SDLK_DOWN: glb.snes->snes_setButtonState(1, 5, pressed); break;
+    case SDLK_LEFT: glb.snes->snes_setButtonState(1, 6, pressed); break;
+    case SDLK_RIGHT: glb.snes->snes_setButtonState(1, 7, pressed); break;
+    case SDLK_x: glb.snes->snes_setButtonState(1, 8, pressed); break;
+    case SDLK_s: glb.snes->snes_setButtonState(1, 9, pressed); break;
+    case SDLK_d: glb.snes->snes_setButtonState(1, 10, pressed); break;
+    case SDLK_c: glb.snes->snes_setButtonState(1, 11, pressed); break;
   }
 }
 
@@ -399,7 +413,7 @@ static void loadRom(const char* path) {
   // close currently loaded rom (saves battery)
   closeRom();
   // load new rom
-  if(snes_loadRom(glb.snes, file, length)) {
+  if(glb.snes->snes_loadRom(file, length)) {
     // get rom name and paths, set title
     setPaths(path);
     setTitle(glb.romName);
@@ -411,7 +425,7 @@ static void loadRom(const char* path) {
     int size = 0;
     uint8_t* saveData = readFile(glb.savePath, &size);
     if(saveData != NULL) {
-      if(snes_loadBattery(glb.snes, saveData, size)) {
+      if(glb.snes->snes_loadBattery(saveData, size)) {
         puts("Loaded battery data");
       } else {
         puts("Failed to load battery data");
@@ -424,10 +438,10 @@ static void loadRom(const char* path) {
 
 static void closeRom() {
   if(!glb.loaded) return;
-  int size = snes_saveBattery(glb.snes, NULL);
+  int size = glb.snes->snes_saveBattery(NULL);
   if(size > 0) {
-    uint8_t* saveData = malloc(size);
-    snes_saveBattery(glb.snes, saveData);
+    uint8_t* saveData = (uint8_t*)malloc(size);
+    glb.snes->snes_saveBattery(saveData);
     FILE* f = fopen(glb.savePath, "wb");
     if(f != NULL) {
       fwrite(saveData, size, 1, f);
@@ -449,14 +463,14 @@ static void setPaths(const char* path) {
   } else {
     filename += 1; // skip past '/' or '\' itself
   }
-  glb.romName = malloc(strlen(filename) + 1); // +1 for '\0'
+  glb.romName = (char*)malloc(strlen(filename) + 1); // +1 for '\0'
   strcpy(glb.romName, filename);
   // get extension length
   const char* extStart = strrchr(glb.romName, '.'); // last occurence of '.'
   int extLen = extStart == NULL ? 0 : strlen(extStart);
   // get save name
   if(glb.savePath) free(glb.savePath);
-  glb.savePath = malloc(strlen(glb.prefPath) + strlen(glb.romName) + 11); // "saves/" (6) + ".srm" (4) + '\0'
+  glb.savePath = (char*)malloc(strlen(glb.prefPath) + strlen(glb.romName) + 11); // "saves/" (6) + ".srm" (4) + '\0'
   strcpy(glb.savePath, glb.prefPath);
   strcat(glb.savePath, "saves");
   strcat(glb.savePath, glb.pathSeparator);
@@ -464,7 +478,7 @@ static void setPaths(const char* path) {
   strcat(glb.savePath, ".srm");
   // get state name
   if(glb.statePath) free(glb.statePath);
-  glb.statePath = malloc(strlen(glb.prefPath) + strlen(glb.romName) + 12); // "states/" (7) + ".lss" (4) + '\0'
+  glb.statePath = (char*)malloc(strlen(glb.prefPath) + strlen(glb.romName) + 12); // "states/" (7) + ".lss" (4) + '\0'
   strcpy(glb.statePath, glb.prefPath);
   strcat(glb.statePath, "states");
   strcat(glb.statePath, glb.pathSeparator);
@@ -477,7 +491,7 @@ static void setTitle(const char* romName) {
     SDL_SetWindowTitle(glb.window, "LakeSnes");
     return;
   }
-  char* title = malloc(strlen(romName) + 12); // "LakeSnes - " (11) + '\0'
+  char* title = (char*)malloc(strlen(romName) + 12); // "LakeSnes - " (11) + '\0'
   strcpy(title, "LakeSnes - ");
   strcat(title, romName);
   SDL_SetWindowTitle(glb.window, title);
@@ -490,7 +504,7 @@ static uint8_t* readFile(const char* name, int* length) {
   fseek(f, 0, SEEK_END);
   int size = ftell(f);
   rewind(f);
-  uint8_t* buffer = malloc(size);
+  uint8_t* buffer = (uint8_t*)malloc(size);
   if(fread(buffer, size, 1, f) != 1) {
     fclose(f);
     return NULL;

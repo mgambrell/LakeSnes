@@ -37,8 +37,7 @@ namespace LakeSnes
 		// debugging
 		void snes_runCpuCycle();
 		void snes_runSpcCycle();
-
-		
+		uint8_t snes_peekByte(uint32_t addr24);
 
 		// snes_other.c functions:
 

@@ -465,4 +465,10 @@ namespace LakeSnes
 		myapu.myspc.spc_runOpcode();
 	}
 
+	uint8_t Snes::snes_peekByte(uint32_t addr24)
+	{
+		// TODO: this can have side effects, implement and use proper peeking
+		return mycpu.dma_read((addr24>>16)&0xFF,addr24&0xFFFF);
+	}
+
  }

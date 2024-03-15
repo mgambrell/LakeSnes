@@ -13,9 +13,9 @@ appsdlflags = -framework SDL2 -F sdl2 -rpath @executable_path/../Frameworks
 
 winexecname = lakesnes.exe
 
-cfiles = snes/spc.c snes/dsp.c snes/apu.c snes/cpu.c snes/dma.c snes/ppu.c snes/cart.c snes/cx4.c snes/input.c snes/statehandler.c snes/snes.c snes/snes_other.c \
- zip/zip.c tracing.c main.c
-hfiles = snes/spc.h snes/dsp.h snes/apu.h snes/cpu.h snes/dma.h snes/ppu.h snes/cart.h snes/cx4.h snes/input.h snes/statehandler.h snes/snes.h \
+cfiles = snes/spc.cpp snes/dsp.cpp snes/apu.cpp snes/cpu.cpp snes/dma.cpp snes/ppu.cpp snes/cart.cpp snes/cx4.cpp snes/input.cpp snes/snes.cpp snes/snes_other.cpp \
+ zip/zip.cpp tracing.cpp main.cpp
+hfiles = snes/spc.h snes/dsp.h snes/apu.h snes/cpu.h snes/dma.h snes/ppu.h snes/cart.h snes/cx4.h snes/input.h snes/snes.h \
  zip/zip.h zip/miniz.h tracing.h
 
 .PHONY: all clean

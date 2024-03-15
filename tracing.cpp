@@ -1,9 +1,7 @@
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
-#include <stdbool.h>
 
 #include "tracing.h"
 #include "snes.h"
@@ -89,10 +87,10 @@ static const int opcodeTypeSpc[256] = {
   3, 0, 1, 5, 1, 2, 2, 1, 1, 1, 4, 1, 0, 0, 3, 0
 };
 
-static void getDisassemblyCpu(Snes* snes, char* line);
-static void getDisassemblySpc(Snes* snes, char* line);
+static void getDisassemblyCpu(LakeSnes::Snes* snes, char* line);
+static void getDisassemblySpc(LakeSnes::Snes* snes, char* line);
 
-void getProcessorStateCpu(Snes* snes, char* line) {
+void getProcessorStateCpu(LakeSnes::Snes* snes, char* line) {
   // 0        1         2         3         4         5         6         7         8
   // 12345678901234567890123456789012345678901234567890123456789012345678901234567890
   // CPU 12:3456 1234567890123 A:1234 X:1234 Y:1234 SP:1234 DP:1234 DP:12 e nvmxdizc
@@ -100,14 +98,14 @@ void getProcessorStateCpu(Snes* snes, char* line) {
   getDisassemblyCpu(snes, disLine);
   sprintf(
     line, "CPU %02x:%04x %s A:%04x X:%04x Y:%04x SP:%04x DP:%04x DB:%02x %c %c%c%c%c%c%c%c%c",
-    snes->cpu->k, snes->cpu->pc, disLine, snes->cpu->a, snes->cpu->x, snes->cpu->y,
-    snes->cpu->sp, snes->cpu->dp, snes->cpu->db, snes->cpu->e ? 'E' : 'e',
-    snes->cpu->n ? 'N' : 'n', snes->cpu->v ? 'V' : 'v', snes->cpu->mf ? 'M' : 'm', snes->cpu->xf ? 'X' : 'x',
-    snes->cpu->d ? 'D' : 'd', snes->cpu->i ? 'I' : 'i', snes->cpu->z ? 'Z' : 'z', snes->cpu->c ? 'C' : 'c'
+    snes->mycpu.k, snes->mycpu.pc, disLine, snes->mycpu.a, snes->mycpu.x, snes->mycpu.y,
+    snes->mycpu.sp, snes->mycpu.dp, snes->mycpu.db, snes->mycpu.e ? 'E' : 'e',
+    snes->mycpu.n ? 'N' : 'n', snes->mycpu.v ? 'V' : 'v', snes->mycpu._mf ? 'M' : 'm', snes->mycpu._xf ? 'X' : 'x',
+    snes->mycpu.d ? 'D' : 'd', snes->mycpu.i ? 'I' : 'i', snes->mycpu.z ? 'Z' : 'z', snes->mycpu.c ? 'C' : 'c'
   );
 }
 
-void getProcessorStateSpc(Snes* snes, char* line) {
+void getProcessorStateSpc(LakeSnes::Snes* snes, char* line) {
   // 0        1         2         3         4         5         6         7         8
   // 12345678901234567890123456789012345678901234567890123456789012345678901234567890
   // SPC 3456 12345678901234567 A:12 X:12 Y:12 SP:12 nvpbhizc
@@ -115,35 +113,40 @@ void getProcessorStateSpc(Snes* snes, char* line) {
   getDisassemblySpc(snes, disLine);
   sprintf(
     line, "SPC %04x %s A:%02x X:%02x Y:%02x SP:%02x %c%c%c%c%c%c%c%c",
-    snes->apu->spc->pc, disLine, snes->apu->spc->a, snes->apu->spc->x, snes->apu->spc->y, snes->apu->spc->sp,
-    snes->apu->spc->n ? 'N' : 'n', snes->apu->spc->v ? 'V' : 'v', snes->apu->spc->p ? 'P' : 'p', snes->apu->spc->b ? 'B' : 'b',
-    snes->apu->spc->h ? 'H' : 'h', snes->apu->spc->i ? 'I' : 'i', snes->apu->spc->z ? 'Z' : 'z', snes->apu->spc->c ? 'C' : 'c'
+    snes->myapu.myspc.pc, disLine, snes->myapu.myspc.a, snes->myapu.myspc.x, snes->myapu.myspc.y, snes->myapu.myspc.sp,
+    snes->myapu.myspc.n ? 'N' : 'n', snes->myapu.myspc.v ? 'V' : 'v', snes->myapu.myspc.p ? 'P' : 'p', snes->myapu.myspc.b ? 'B' : 'b',
+    snes->myapu.myspc.h ? 'H' : 'h', snes->myapu.myspc.i ? 'I' : 'i', snes->myapu.myspc.z ? 'Z' : 'z', snes->myapu.myspc.c ? 'C' : 'c'
   );
 }
 
-static void getDisassemblyCpu(Snes* snes, char* line) {
-  uint32_t adr = snes->cpu->pc | (snes->cpu->k << 16);
-  if(snes->cpu->stopped) {
+static void getDisassemblyCpu(LakeSnes::Snes* snes, char* line) {
+  uint32_t adr = snes->mycpu.pc | (snes->mycpu.k << 16);
+  
+  //stopped and waiting have been removed due to relative uselessnes.
+  //could be readded but should be done with several flags in one value
+  #if 0
+  if(snes->mycpu.stopped) {
     sprintf(line, "%s", "<stopped>    ");
     return;
   }
-  if(snes->cpu->waiting) {
+  if(snes->mycpu.waiting) {
     sprintf(line, "%s", "<waiting>    ");
     return;
   }
-  if(snes->cpu->intWanted) {
+  #endif
+
+  if(snes->mycpu.intWanted) {
     sprintf(line, "%s", "<interrupt>  ");
     return;
   }
   // read 4 bytes
-  // TODO: this can have side effects, implement and use peaking
-  uint8_t opcode = snes_read(snes, adr);
-  uint8_t byte = snes_read(snes, (adr + 1) & 0xffffff);
-  uint8_t byte2 = snes_read(snes, (adr + 2) & 0xffffff);
+  uint8_t opcode = snes->snes_peekByte(adr);
+  uint8_t byte = snes->snes_peekByte((adr + 1) & 0xffffff);
+  uint8_t byte2 = snes->snes_peekByte((adr + 2) & 0xffffff);
   uint16_t word = (byte2 << 8) | byte;
-  uint32_t longv = (snes_read(snes, (adr + 3) & 0xffffff) << 16) | word;
-  uint16_t rel = snes->cpu->pc + 2 + (int8_t) byte;
-  uint16_t rell = snes->cpu->pc + 3 + (int16_t) word;
+  uint32_t longv = (snes->snes_peekByte((adr + 3) & 0xffffff) << 16) | word;
+  uint16_t rel = snes->mycpu.pc + 2 + (int8_t) byte;
+  uint16_t rell = snes->mycpu.pc + 3 + (int16_t) word;
   // switch on type
   switch(opcodeType[opcode]) {
     case 0: sprintf(line, "%s", opcodeNames[opcode]); break;
@@ -152,7 +155,7 @@ static void getDisassemblyCpu(Snes* snes, char* line) {
     case 3: sprintf(line, opcodeNames[opcode], longv); break;
     case 4: {
       char num[5] = "    ";
-      if(snes->cpu->mf) {
+      if(snes->mycpu._mf) {
         sprintf(num, "%02x  ", byte);
       } else {
         sprintf(num, "%04x", word);
@@ -162,7 +165,7 @@ static void getDisassemblyCpu(Snes* snes, char* line) {
     }
     case 5: {
       char num[5] = "    ";
-      if(snes->cpu->xf) {
+      if(snes->mycpu._xf) {
         sprintf(num, "%02x  ", byte);
       } else {
         sprintf(num, "%04x", word);
@@ -176,20 +179,20 @@ static void getDisassemblyCpu(Snes* snes, char* line) {
   }
 }
 
-void getDisassemblySpc(Snes* snes, char* line) {
-  uint16_t adr = snes->apu->spc->pc;
-  if(snes->apu->spc->stopped) {
+void getDisassemblySpc(LakeSnes::Snes* snes, char* line) {
+  uint16_t adr = snes->myapu.myspc.pc;
+  if(snes->myapu.myspc.stopped) {
     sprintf(line, "%s", "<stopped>        ");
     return;
   }
   // read 3 bytes
   // TODO: this can have side effects, implement and use peaking
-  uint8_t opcode = apu_read(snes->apu, adr);
-  uint8_t byte = apu_read(snes->apu, (adr + 1) & 0xffff);
-  uint8_t byte2 = apu_read(snes->apu, (adr + 2) & 0xffff);
+  uint8_t opcode = snes->myapu.apu_read(adr);
+  uint8_t byte = snes->myapu.apu_read((adr + 1) & 0xffff);
+  uint8_t byte2 = snes->myapu.apu_read((adr + 2) & 0xffff);
   uint16_t word = (byte2 << 8) | byte;
-  uint16_t rel = snes->apu->spc->pc + 2 + (int8_t) byte;
-  uint16_t rel2 = snes->apu->spc->pc + 2 + (int8_t) byte2;
+  uint16_t rel = snes->myapu.myspc.pc + 2 + (int8_t) byte;
+  uint16_t rel2 = snes->myapu.myspc.pc + 2 + (int8_t) byte2;
   uint16_t wordb = word & 0x1fff;
   uint8_t bit = word >> 13;
   // switch on type
