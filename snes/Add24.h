@@ -20,7 +20,7 @@ namespace LakeSnes
 
 		//The current open bus value.
 		//This is stored here because we often need to return it as the result of a probe
-		uint8_t openBus() const { return _fast; }
+		uint8_t openBus() const { return _openBus; }
 
 		//Cycles used for fast accesses
 		int FastCycles() const { return _fast; }

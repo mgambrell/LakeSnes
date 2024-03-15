@@ -1,7 +1,8 @@
 //what the heck? this slows things down.
 //#define LAKESNES_CONFIG_CPU_ONE_SYNC_PER_BUS_ACCESSES 1
 
-#define LAKESNES_CONFIG_CPU_ONE_SYNC_PER_INSTRUCTION
+//not working right now. dma vs syncCycles vs cpu.cycles is all so confusing
+//#define LAKESNES_CONFIG_CPU_ONE_SYNC_PER_INSTRUCTION
 
 #include "conf.h"
 
