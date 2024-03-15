@@ -122,8 +122,11 @@ namespace LakeSnes
 		uint8_t scrollPrev2;
 		uint8_t mosaicSize;
 		uint8_t mosaicStartLine;
+		uint8_t rawMosaic;
+		uint8_t rawBGMODE;
 		// layers
 		Layer layer[5];
+		uint8_t rawScreenDesignation[2];
 		// mode 7
 		int16_t m7matrix[8]; // a, b, c, d, x, y, h, v
 		uint8_t m7prev;
@@ -141,6 +144,10 @@ namespace LakeSnes
 		uint8_t window1right;
 		uint8_t window2left;
 		uint8_t window2right;
+		//raw window 
+		uint8_t rawWindowSelect[3];
+		uint8_t rawWindowMask[2];
+		uint8_t rawWindowEnable[2];
 		// color math
 		uint8_t clipMode;
 		uint8_t preventMathMode;
@@ -151,8 +158,12 @@ namespace LakeSnes
 		uint8_t fixedColorR;
 		uint8_t fixedColorG;
 		uint8_t fixedColorB;
+		uint8_t rawCGWSEL;
+		uint8_t rawCGADSUB;
+		uint8_t rawSETINI;
 		// settings
 		bool forcedBlank;
+		uint8_t rawINIDISP;
 		uint8_t brightness;
 		uint8_t mode;
 		bool bg3priority;

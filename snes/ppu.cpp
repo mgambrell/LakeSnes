@@ -828,6 +828,7 @@ namespace LakeSnes
 				brightness = val & 0xf;
 				bright_now = bright_lut[brightness];
 				forcedBlank = val & 0x80;
+				rawINIDISP = val;
 				break;
 			}
 			case 0x01: {
@@ -876,6 +877,7 @@ namespace LakeSnes
 				bgLayer[1].bigTiles = val & 0x20;
 				bgLayer[2].bigTiles = val & 0x40;
 				bgLayer[3].bigTiles = val & 0x80;
+				rawBGMODE = val;
 				break;
 			}
 			case 0x06: {
@@ -886,6 +888,7 @@ namespace LakeSnes
 				bgLayer[3].mosaicEnabled = val & 0x8;
 				mosaicSize = (val >> 4) + 1;
 				mosaicStartLine = config.snes->vPos;
+				rawMosaic = val;
 				break;
 			}
 			case 0x07:
@@ -1013,6 +1016,7 @@ namespace LakeSnes
 				windowLayer[(adr - 0x23) * 2 + 1].window1enabled = val & 0x20;
 				windowLayer[(adr - 0x23) * 2 + 1].window2inversed = val & 0x40;
 				windowLayer[(adr - 0x23) * 2 + 1].window2enabled = val & 0x80;
+				rawWindowSelect[adr-0x23] = val;
 				break;
 			}
 			case 0x26: {
@@ -1036,11 +1040,13 @@ namespace LakeSnes
 				windowLayer[1].maskLogic = (val >> 2) & 0x3;
 				windowLayer[2].maskLogic = (val >> 4) & 0x3;
 				windowLayer[3].maskLogic = (val >> 6) & 0x3;
+				rawWindowMask[0] = val;
 				break;
 			}
 			case 0x2b: {
 				windowLayer[4].maskLogic = val & 0x3;
 				windowLayer[5].maskLogic = (val >> 2) & 0x3;
+				rawWindowMask[1] = val;
 				break;
 			}
 			case 0x2c: {
@@ -1049,6 +1055,7 @@ namespace LakeSnes
 				layer[2].mainScreenEnabled = val & 0x4;
 				layer[3].mainScreenEnabled = val & 0x8;
 				layer[4].mainScreenEnabled = val & 0x10;
+				rawScreenDesignation[0] = val;
 				break;
 			}
 			case 0x2d: {
@@ -1057,6 +1064,7 @@ namespace LakeSnes
 				layer[2].subScreenEnabled = val & 0x4;
 				layer[3].subScreenEnabled = val & 0x8;
 				layer[4].subScreenEnabled = val & 0x10;
+				rawScreenDesignation[1] = val;
 				break;
 			}
 			case 0x2e: {
@@ -1065,6 +1073,7 @@ namespace LakeSnes
 				layer[2].mainScreenWindowed = val & 0x4;
 				layer[3].mainScreenWindowed = val & 0x8;
 				layer[4].mainScreenWindowed = val & 0x10;
+				rawWindowEnable[0] = val;
 				break;
 			}
 			case 0x2f: {
@@ -1073,6 +1082,7 @@ namespace LakeSnes
 				layer[2].subScreenWindowed = val & 0x4;
 				layer[3].subScreenWindowed = val & 0x8;
 				layer[4].subScreenWindowed = val & 0x10;
+				rawWindowEnable[1] = val;
 				break;
 			}
 			case 0x30: {
@@ -1080,6 +1090,7 @@ namespace LakeSnes
 				addSubscreen = val & 0x2;
 				preventMathMode = (val & 0x30) >> 4;
 				clipMode = (val & 0xc0) >> 6;
+				rawCGWSEL = val;
 				break;
 			}
 			case 0x31: {
@@ -1088,6 +1099,7 @@ namespace LakeSnes
 				for(int i = 0; i < 6; i++) {
 					mathEnabled[i] = val & (1 << i);
 				}
+				rawCGADSUB = val;
 				break;
 			}
 			case 0x32: {
@@ -1102,6 +1114,7 @@ namespace LakeSnes
 				overscan = val & 0x4;
 				pseudoHires = val & 0x8;
 				m7extBg = val & 0x40;
+				rawSETINI = val;
 				break;
 			}
 			default: {
