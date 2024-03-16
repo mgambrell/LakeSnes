@@ -835,6 +835,7 @@ namespace LakeSnes
 				objSize = val >> 5;
 				objTileAdr1 = (val & 7) << 13;
 				objTileAdr2 = objTileAdr1 + (((val & 0x18) + 8) << 9);
+				rawOBSEL = val;
 				break;
 			}
 			case 0x02: {

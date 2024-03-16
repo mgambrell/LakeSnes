@@ -163,6 +163,7 @@ namespace LakeSnes
 		uint8_t rawSETINI;
 		// settings
 		bool forcedBlank;
+		uint8_t rawOBSEL;
 		uint8_t rawINIDISP;
 		uint8_t brightness;
 		uint8_t mode;
