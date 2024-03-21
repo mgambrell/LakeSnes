@@ -1,3 +1,4 @@
+#define NO_VSYNC
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -88,7 +89,11 @@ int main(int argc, char** argv) {
     printf("Failed to create window: %s\n", SDL_GetError());
     return 1;
   }
-  glb.renderer = SDL_CreateRenderer(glb.window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+  int flags = SDL_RENDERER_ACCELERATED;
+  #ifndef NO_VSYNC
+  flags |= SDL_RENDERER_PRESENTVSYNC;
+  #endif
+  glb.renderer = SDL_CreateRenderer(glb.window, -1, flags);
   if(glb.renderer == NULL) {
     printf("Failed to create renderer: %s\n", SDL_GetError());
     return 1;
@@ -294,7 +299,10 @@ int main(int argc, char** argv) {
     float seconds = delta / (float) countFreq;
     timeAdder += seconds;
     // allow 2 ms earlier, to prevent skipping due to being just below wanted
-    while(timeAdder >= glb.wantedFrames - 0.002) {
+    #ifndef NO_VSYNC
+    while(timeAdder >= glb.wantedFrames - 0.002)
+    #endif
+    {
       timeAdder -= glb.wantedFrames;
       // run frame
       if(glb.loaded && (!paused || runOne)) {
